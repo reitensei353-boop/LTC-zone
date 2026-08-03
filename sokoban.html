@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>推箱子 - 经典模式</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #080316; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; max-width: 100%; border: 2px solid #6a40a0; box-shadow: 0 0 40px rgba(100,60,200,0.7); cursor: default; }
+    #back-btn { position: absolute; top: 14px; left: 14px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); color: #fff; padding: 7px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; backdrop-filter: blur(6px); z-index: 10; }
+    #back-btn:hover { background: rgba(255,255,255,0.22); }
+</style>
+</head>
+<body>
+<button id="back-btn" onclick="history.back()">← 返回</button>
+<canvas id="game" width="800" height="520"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = 800, H = 520;
+const CELL = 56;
+
+// ---- Levels (hand-authored, each verified solvable) ----
+// # wall  . goal  $ box  @ player  (space) floor
+const LEVELS = [
+    { name: '第一关 · 入门', map: [
+        '#####',
+        '#.  #',
+        '# $ #',
+        '# @ #',
+        '#####',
+    ]},
+    { name: '第二关 · 转向', map: [
+        '######',
+        '#    #',
+        '# $ .#',
+        '#  @ #',
+        '######',
+    ]},
+    { name: '第三关 · 双箱', map: [
+        '######',
+        '#    #',
+        '#.$  #',
+        '#  $.#',
+        '#  @ #',
+        '######',
+    ]},
+    { name: '第四关 · 协同', map: [
+        '#######',
+        '#.   .#',
+        '# $ $ #',
+        '#  @  #',
+        '#######',
+    ]},
+    { name: '第五关 · 密室', map: [
+        '#######',
+        '# .#. #',
+        '# $#$ #',
+        '#  #  #',
+        '#  @  #',
+        '#######',
+    ]},
+    { name: '第六关 · 三箱试炼', map: [
+        '#######',
+        '#.#.#.#',
+        '#$#$#$#',
+        '# # # #',
+        '#  @  #',
+        '#######',
+    ]},
+];
+
+// ---- Level parsing ----
+function parseLevel(map) {
+    const h = map.length, w = Math.max(...map.map(r => r.length));
+    const walls = new Set(), goals = new Set();
+    const boxes = []; let player = null;
+    for (let y = 0; y < h; y++) {
+        const row = map[y];
+        for (let x = 0; x < w; x++) {
+            const c = row[x] || ' ';
+            if (c === '#') walls.add(x+','+y);
+            if (c === '.' || c === '*' || c === '+') goals.add(x+','+y);
+            if (c === '$' || c === '*') boxes.push({x,y});
+            if (c === '@' || c === '+') player = {x,y};
+        }
+    }
+    return { w, h, walls, goals, boxes, player };
+}
+
+// ---- Progress (localStorage) ----
+const SAVE_KEY = 'sokoban_progress_v1';
+function loadProgress() {
+    try {
+        const p = JSON.parse(localStorage.getItem(SAVE_KEY));
+        if (p && typeof p.unlocked === 'number') return p;
+    } catch(e) {}
+    return { unlocked: 1, best: {} };
+}
+let progress = loadProgress();
+function saveProgress() { localStorage.setItem(SAVE_KEY, JSON.stringify(progress)); }
+
+// ---- Game State ----
+let screen = 'menu'; // 'menu' | 'play'
+let state = null;
+
+function boxAt(x, y) { return state.boxes.find(b => b.x === x && b.y === y); }
+function isWall(x, y) { return state.walls.has(x+','+y); }
+function isWin() { return [...state.goals].every(k => { const [gx,gy]=k.split(',').map(Number); return !!boxAt(gx,gy); }); }
+
+function loadLevel(idx) {
+    const parsed = parseLevel(LEVELS[idx].map);
+    state = {
+        idx, w: parsed.w, h: parsed.h, walls: parsed.walls, goals: parsed.goals,
+        boxes: parsed.boxes.map(b => ({x:b.x, y:b.y, px:b.x*CELL, py:b.y*CELL})),
+        player: { x: parsed.player.x, y: parsed.player.y, px: parsed.player.x*CELL, py: parsed.player.y*CELL, facing: 1 },
+        moves: 0, pushes: 0, history: [], won: false, justUnlocked: false,
+    };
+    screen = 'play';
+}
+
+function snapshot() {
+    return {
+        player: { x: state.player.x, y: state.player.y },
+        boxes: state.boxes.map(b => ({x:b.x, y:b.y})),
+        moves: state.moves, pushes: state.pushes,
+    };
+}
+function pushHistory() {
+    state.history.push(snapshot());
+    if (state.history.length > 200) state.history.shift();
+}
+function undo() {
+    if (screen !== 'play' || state.won || !state.history.length) return;
+    const s = state.history.pop();
+    state.player.x = s.player.x; state.player.y = s.player.y;
+    s.boxes.forEach((b,i) => { state.boxes[i].x = b.x; state.boxes[i].y = b.y; });
+    state.moves = s.moves; state.pushes = s.pushes;
+}
+function resetLevel() { loadLevel(state.idx); }
+
+function tryMove(dx, dy) {
+    if (screen !== 'play' || state.won) return;
+    state.player.facing = dx !== 0 ? dx : state.player.facing;
+    const nx = state.player.x + dx, ny = state.player.y + dy;
+    if (isWall(nx, ny)) return;
+    const box = boxAt(nx, ny);
+    if (box) {
+        const bx2 = nx + dx, by2 = ny + dy;
+        if (isWall(bx2, by2) || boxAt(bx2, by2)) return;
+        pushHistory();
+        box.x = bx2; box.y = by2;
+        state.player.x = nx; state.player.y = ny;
+        state.moves++; state.pushes++;
+    } else {
+        pushHistory();
+        state.player.x = nx; state.player.y = ny;
+        state.moves++;
+    }
+    if (isWin()) {
+        state.won = true;
+        const idx = state.idx;
+        const prevBest = progress.best[idx];
+        if (prevBest === undefined || state.moves < prevBest) progress.best[idx] = state.moves;
+        if (progress.unlocked < idx + 2) { progress.unlocked = Math.min(LEVELS.length, idx + 2); state.justUnlocked = true; }
+        saveProgress();
+    }
+}
+
+// ---- Input ----
+const MOVE_KEYS = {
+    ArrowUp:[0,-1], KeyW:[0,-1], ArrowDown:[0,1], KeyS:[0,1],
+    ArrowLeft:[-1,0], KeyA:[-1,0], ArrowRight:[1,0], KeyD:[1,0],
+};
+document.addEventListener('keydown', e => {
+    if (MOVE_KEYS[e.code]) { e.preventDefault(); tryMove(...MOVE_KEYS[e.code]); }
+    else if (e.code === 'KeyZ' || e.code === 'Backspace') { e.preventDefault(); undo(); }
+    else if (e.code === 'KeyR') { e.preventDefault(); if (screen==='play') resetLevel(); }
+    else if (e.code === 'Escape') { e.preventDefault(); screen = 'menu'; }
+});
+
+// ---- Mouse ----
+let mouseX = 0, mouseY = 0;
+canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    mouseX = (e.clientX - r.left) * (W / r.width);
+    mouseY = (e.clientY - r.top) * (H / r.height);
+});
+canvas.addEventListener('click', e => {
+    const r = canvas.getBoundingClientRect();
+    const mx = (e.clientX - r.left) * (W / r.width), my = (e.clientY - r.top) * (H / r.height);
+    if (screen === 'menu') handleMenuClick(mx, my);
+    else handlePlayClick(mx, my);
+});
+
+function hit(mx, my, rect) { return mx>=rect.x && mx<=rect.x+rect.w && my>=rect.y && my<=rect.y+rect.h; }
+
+// ---- Menu layout ----
+const MENU = { cols:3, cw:200, ch:140, gap:30 };
+function cardRect(i) {
+    const totalW = MENU.cols*MENU.cw + (MENU.cols-1)*MENU.gap;
+    const ox = (W-totalW)/2, oy = 150;
+    return { x: ox + (i%MENU.cols)*(MENU.cw+MENU.gap), y: oy + Math.floor(i/MENU.cols)*(MENU.ch+MENU.gap), w:MENU.cw, h:MENU.ch };
+}
+function handleMenuClick(mx, my) {
+    LEVELS.forEach((lvl, i) => {
+        if (i >= progress.unlocked) return;
+        if (hit(mx, my, cardRect(i))) loadLevel(i);
+    });
+}
+
+// ---- Play HUD buttons ----
+function btnRects() {
+    return {
+        menu:  { x: W-330, y: 14, w: 100, h: 32 },
+        undo:  { x: W-220, y: 14, w: 100, h: 32 },
+        reset: { x: W-110, y: 14, w: 100, h: 32 },
+    };
+}
+function winBtnRects() {
+    return {
+        next: { x: W/2-110, y: H/2+55, w: 100, h: 36 },
+        menu: { x: W/2+10,  y: H/2+55, w: 100, h: 36 },
+    };
+}
+function handlePlayClick(mx, my) {
+    if (state.won) {
+        const b = winBtnRects();
+        if (hit(mx,my,b.next)) { if (state.idx+1 < LEVELS.length) loadLevel(state.idx+1); else screen='menu'; return; }
+        if (hit(mx,my,b.menu)) { screen='menu'; return; }
+        return;
+    }
+    const b = btnRects();
+    if (hit(mx,my,b.menu)) screen = 'menu';
+    else if (hit(mx,my,b.undo)) undo();
+    else if (hit(mx,my,b.reset)) resetLevel();
+}
+
+// ---- Render helpers ----
+function boardOffset() {
+    const bw = state.w*CELL, bh = state.h*CELL;
+    return { ox: (W-bw)/2, oy: 70 + (H-70-60-bh)/2 };
+}
+function drawButton(r, label, color='#8844cc') {
+    ctx.fillStyle = 'rgba(20,10,36,0.85)'; ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.strokeRect(r.x, r.y, r.w, r.h);
+    ctx.fillStyle = '#eee'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(label, r.x+r.w/2, r.y+r.h/2+5);
+}
+
+function drawBackdrop() {
+    const bg = ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#0a0420'); bg.addColorStop(1,'#150830');
+    ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+}
+
+function drawMenu() {
+    drawBackdrop();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#cc88ff'; ctx.font = 'bold 32px sans-serif';
+    ctx.fillText('推箱子 · 经典模式', W/2, 90);
+    ctx.fillStyle = 'rgba(200,170,230,0.6)'; ctx.font = '13px sans-serif';
+    ctx.fillText('方向键/WASD 移动推箱  Z 撤销  R 重置', W/2, 118);
+
+    LEVELS.forEach((lvl, i) => {
+        const r = cardRect(i);
+        const unlocked = i < progress.unlocked;
+        const best = progress.best[i];
+        ctx.fillStyle = unlocked ? 'rgba(28,14,48,0.95)' : 'rgba(12,6,22,0.9)';
+        ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.strokeStyle = unlocked ? (best!==undefined ? '#66dd88' : '#8844cc') : '#332244';
+        ctx.lineWidth = 2; ctx.strokeRect(r.x, r.y, r.w, r.h);
+
+        ctx.globalAlpha = unlocked ? 1 : 0.4;
+        ctx.fillStyle = unlocked ? '#fff' : '#665577';
+        ctx.font = 'bold 18px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(unlocked ? lvl.name : '🔒 未解锁', r.x+r.w/2, r.y+r.h/2 - (unlocked?10:0));
+        if (unlocked) {
+            ctx.font = '13px sans-serif';
+            ctx.fillStyle = best!==undefined ? '#66dd88' : '#998ab0';
+            ctx.fillText(best!==undefined ? `✓ 最佳步数 ${best}` : '尚未通关', r.x+r.w/2, r.y+r.h/2+18);
+        }
+        ctx.globalAlpha = 1;
+    });
+}
+
+function drawTile(x, y, ch) {
+    const {ox, oy} = boardOffset();
+    const px = ox + x*CELL, py = oy + y*CELL;
+    const isGoal = state.goals.has(x+','+y);
+    // floor
+    ctx.fillStyle = '#1c1030'; ctx.fillRect(px, py, CELL, CELL);
+    ctx.strokeStyle = 'rgba(120,80,160,0.15)'; ctx.strokeRect(px, py, CELL, CELL);
+    if (isGoal) {
+        ctx.strokeStyle = '#ffcc44'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(px+CELL/2, py+CELL/2, CELL*0.22, 0, Math.PI*2); ctx.stroke();
+    }
+}
+
+function drawWall(x, y) {
+    const {ox, oy} = boardOffset();
+    const px = ox + x*CELL, py = oy + y*CELL;
+    ctx.fillStyle = '#3a2a55'; ctx.fillRect(px, py, CELL, CELL);
+    ctx.strokeStyle = '#5a3f80'; ctx.lineWidth = 1; ctx.strokeRect(px+2, py+2, CELL-4, CELL-4);
+    ctx.fillStyle = 'rgba(255,255,255,0.04)'; ctx.fillRect(px, py, CELL, CELL/2);
+}
+
+function drawBox(b) {
+    const {ox, oy} = boardOffset();
+    const onGoal = state.goals.has(b.x+','+b.y);
+    const px = ox + b.px, py = oy + b.py;
+    ctx.save();
+    if (onGoal) { ctx.shadowColor = '#ffcc44'; ctx.shadowBlur = 16; }
+    ctx.fillStyle = onGoal ? '#e0a838' : '#a86a3a';
+    ctx.fillRect(px+5, py+5, CELL-10, CELL-10);
+    ctx.strokeStyle = onGoal ? '#ffe088' : '#6b4425'; ctx.lineWidth = 3;
+    ctx.strokeRect(px+5, py+5, CELL-10, CELL-10);
+    ctx.beginPath(); ctx.moveTo(px+5,py+5); ctx.lineTo(px+CELL-5,py+CELL-5);
+    ctx.moveTo(px+CELL-5,py+5); ctx.lineTo(px+5,py+CELL-5); ctx.stroke();
+    ctx.restore();
+}
+
+function drawPlayer() {
+    const {ox, oy} = boardOffset();
+    const px = ox + state.player.px + CELL/2, py = oy + state.player.py + CELL/2;
+    ctx.save();
+    ctx.translate(px, py); ctx.scale(state.player.facing, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, CELL*0.32, CELL*0.28, CELL*0.08, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#2288dd'; ctx.beginPath(); ctx.arc(0, CELL*0.05, CELL*0.26, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#f5c5a0'; ctx.beginPath(); ctx.arc(0, -CELL*0.22, CELL*0.16, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(CELL*0.06, -CELL*0.23, CELL*0.03, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+}
+
+function drawPlayHUD() {
+    const lvl = LEVELS[state.idx];
+    ctx.textAlign = 'left'; ctx.fillStyle = '#cc88ff'; ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(lvl.name, 16, 32);
+    ctx.fillStyle = '#aaa'; ctx.font = '13px sans-serif';
+    ctx.fillText(`步数 ${state.moves}   推箱 ${state.pushes}`, 16, 52);
+
+    const b = btnRects();
+    drawButton(b.menu, '☰ 菜单');
+    drawButton(b.undo, '↺ 撤销 (Z)');
+    drawButton(b.reset, '⟳ 重置 (R)');
+
+    ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('方向键/WASD 移动推箱   Z 撤销   R 重置   Esc 返回菜单', W/2, H-14);
+}
+
+function drawWinOverlay() {
+    ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0,0,W,H);
+    ctx.save(); ctx.textAlign = 'center';
+    ctx.fillStyle = '#66dd88'; ctx.font = 'bold 40px sans-serif';
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
+    ctx.strokeText('过关！', W/2, H/2-40); ctx.fillText('过关！', W/2, H/2-40);
+    ctx.fillStyle = '#ffdd66'; ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(`步数 ${state.moves}  ·  推箱 ${state.pushes}`, W/2, H/2);
+    if (state.justUnlocked && state.idx+1 < LEVELS.length) {
+        ctx.fillStyle = '#88ccff'; ctx.font = '14px sans-serif';
+        ctx.fillText('已解锁下一关', W/2, H/2+26);
+    }
+    const b = winBtnRects();
+    drawButton(b.next, state.idx+1 < LEVELS.length ? '下一关 →' : '返回菜单', '#66dd88');
+    drawButton(b.menu, '☰ 菜单');
+    ctx.restore();
+}
+
+// ---- Animation ----
+function updateVisuals() {
+    if (screen !== 'play') return;
+    const p = state.player;
+    p.px += (p.x*CELL - p.px) * 0.35; p.py += (p.y*CELL - p.py) * 0.35;
+    if (Math.abs(p.x*CELL-p.px)<0.5) p.px = p.x*CELL;
+    if (Math.abs(p.y*CELL-p.py)<0.5) p.py = p.y*CELL;
+    state.boxes.forEach(b => {
+        b.px += (b.x*CELL - b.px) * 0.35; b.py += (b.y*CELL - b.py) * 0.35;
+        if (Math.abs(b.x*CELL-b.px)<0.5) b.px = b.x*CELL;
+        if (Math.abs(b.y*CELL-b.py)<0.5) b.py = b.y*CELL;
+    });
+}
+
+function drawPlay() {
+    drawBackdrop();
+    for (let y = 0; y < state.h; y++) {
+        for (let x = 0; x < state.w; x++) {
+            if (state.walls.has(x+','+y)) drawWall(x, y);
+            else drawTile(x, y, ' ');
+        }
+    }
+    state.boxes.forEach(drawBox);
+    drawPlayer();
+    drawPlayHUD();
+    if (state.won) drawWinOverlay();
+}
+
+// ---- Main Loop ----
+function loop() {
+    ctx.clearRect(0, 0, W, H);
+    updateVisuals();
+    if (screen === 'menu') drawMenu(); else drawPlay();
+    requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
