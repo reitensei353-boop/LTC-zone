@@ -256,15 +256,6 @@
   }
 
   .field input[type="text"] { width: 10rem; font-family: var(--font-body); }
-  .field input[type="color"] {
-    width: 2.6rem;
-    height: 2.1rem;
-    padding: 0;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--surface-2);
-    cursor: pointer;
-  }
 
   button.btn {
     font-family: var(--font-body);
@@ -344,8 +335,6 @@
   .cell.ghost-valid { box-shadow: inset 0 0 0 2px var(--good); background: var(--good-soft); }
   .cell.ghost-invalid { box-shadow: inset 0 0 0 2px var(--bad); background: var(--bad-soft); }
 
-  .piece-editor-wrap { display: flex; gap: 1.2rem; flex-wrap: wrap; align-items: start; }
-
   .stats-row {
     display: flex;
     flex-wrap: wrap;
@@ -375,76 +364,37 @@
   .pill.accent { border-color: var(--accent-soft); }
   .pill.accent b { color: var(--accent); }
 
-  .piece-list { display: flex; flex-direction: column; gap: 0.6rem; }
-
-  .piece-card {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.55rem 0.7rem;
-    background: var(--surface-2);
-  }
-
-  .piece-card .mini-grid { display: grid; gap: 1px; flex-shrink: 0; }
-  .piece-card .mini-cell { width: 9px; height: 9px; border-radius: 1px; background: transparent; }
-  .piece-card .mini-cell.on { background: var(--pc, var(--accent)); }
-
-  .piece-card .meta { flex: 1; min-width: 0; }
-  .piece-card .meta .name {
-    font-size: 0.86rem;
-    font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .piece-card .meta .sub {
-    font-size: 0.72rem;
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-  }
-
-  .piece-card input[type="number"] {
-    width: 3.4rem;
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    padding: 0.3rem 0.4rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--surface);
-    color: var(--text);
-  }
-
-  .icon-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: 0.95rem;
-    padding: 0.2rem 0.35rem;
-    border-radius: 5px;
-  }
-  .icon-btn:hover { color: var(--bad); background: var(--bad-soft); }
+  .tray-list { display: flex; flex-direction: column; gap: 0.6rem; }
 
   .tray-card {
     display: flex;
     align-items: center;
-    gap: 0.65rem;
-    width: 100%;
-    text-align: left;
+    gap: 0.5rem;
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 0.55rem 0.65rem;
+    padding: 0.5rem 0.6rem;
     background: var(--surface-2);
-    cursor: pointer;
-    color: var(--text);
-    font-family: var(--font-body);
   }
 
   .tray-card:hover { border-color: var(--accent); }
   .tray-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--accent-soft); }
-  .tray-card:disabled, .tray-card.empty { opacity: 0.4; cursor: not-allowed; }
+  .tray-card.empty { opacity: 0.45; }
+
+  .tray-select {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font-family: var(--font-body);
+    cursor: pointer;
+  }
+  .tray-select:disabled { cursor: not-allowed; }
 
   .tray-card .mini-grid { display: grid; gap: 1px; flex-shrink: 0; }
   .tray-card .mini-cell { width: 8px; height: 8px; border-radius: 1px; background: transparent; }
@@ -457,8 +407,22 @@
     font-variant-numeric: tabular-nums;
     font-size: 0.74rem;
     color: var(--text-muted);
+    white-space: nowrap;
   }
   .count-chip b { color: var(--text); }
+
+  .tray-qty {
+    width: 3.2rem;
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+    padding: 0.32rem 0.4rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+  }
 
   .side-stack { display: flex; flex-direction: column; gap: 1rem; }
 
@@ -495,13 +459,12 @@
   <header class="hero">
     <p class="eyebrow">星象嵌片 · Grid Inlay Workshop</p>
     <h1>面板与嵌片拼图工具</h1>
-    <p class="lede">自定义面板的形状、嵌片的形状与数量，再把嵌片一块块嵌入面板——像整理星图一样把空间填满。</p>
+    <p class="lede">自定义面板的形状，再把固定形状的星象嵌片一块块嵌入面板——像整理星图一样把空间填满。</p>
   </header>
 
   <nav class="tabs" role="tablist">
     <button class="tab active" data-tab="board" role="tab" aria-selected="true">① 面板设计</button>
-    <button class="tab" data-tab="piece" role="tab" aria-selected="false">② 嵌片设计</button>
-    <button class="tab" data-tab="play" role="tab" aria-selected="false">③ 拼图</button>
+    <button class="tab" data-tab="play" role="tab" aria-selected="false">② 拼图</button>
   </nav>
 
   <main>
@@ -531,59 +494,6 @@
       </div>
     </section>
 
-    <!-- PIECE DESIGN -->
-    <section id="tab-piece" class="panel">
-      <div class="layout">
-        <div class="card">
-          <h2>绘制嵌片形状</h2>
-          <p class="hint">在下方小格子里点选出嵌片的形状，设置颜色与拥有的数量，然后加入嵌片库。</p>
-          <div class="field-row">
-            <div class="field">
-              <label for="piece-name">名称</label>
-              <input id="piece-name" type="text" placeholder="留空自动命名" />
-            </div>
-            <div class="field">
-              <label for="piece-color">颜色</label>
-              <input id="piece-color" type="color" value="#d9b168" />
-            </div>
-            <div class="field">
-              <label for="piece-qty">数量</label>
-              <input id="piece-qty" type="number" min="1" max="99" value="1" />
-            </div>
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <label for="editor-rows">草稿行数</label>
-              <input id="editor-rows" type="number" min="1" max="8" value="5" />
-            </div>
-            <div class="field">
-              <label for="editor-cols">草稿列数</label>
-              <input id="editor-cols" type="number" min="1" max="8" value="5" />
-            </div>
-            <div class="btn-row">
-              <button class="btn" id="editor-rotate">旋转 90°</button>
-              <button class="btn" id="editor-flip">镜像</button>
-              <button class="btn" id="editor-clear">清空草稿</button>
-            </div>
-          </div>
-          <div class="grid-scroll">
-            <div class="grid" id="piece-editor-grid"></div>
-          </div>
-          <div class="btn-row" style="margin-top: 0.9rem;">
-            <button class="btn primary" id="piece-add">加入嵌片库</button>
-          </div>
-        </div>
-
-        <div class="side-stack">
-          <div class="card">
-            <h2>嵌片库</h2>
-            <p class="hint">已创建的嵌片类型，可随时调整数量或删除。</p>
-            <div class="piece-list" id="piece-list"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- PLAY -->
     <section id="tab-play" class="panel">
       <div class="stats-row" id="play-stats"></div>
@@ -608,7 +518,8 @@
           </div>
           <div class="card">
             <h2>嵌片库存</h2>
-            <div class="piece-list" id="play-tray"></div>
+            <p class="hint">11 种固定形状，每种 4 格；数量可在右侧输入框调整。</p>
+            <div class="tray-list" id="play-tray"></div>
           </div>
           <div class="card">
             <button class="btn danger" id="play-reset" style="width:100%;">重置拼图</button>
@@ -625,8 +536,7 @@
 (function () {
   "use strict";
 
-  var STORAGE_KEY = "starInlayPuzzle_v1";
-  var PALETTE = ["#d9b168", "#8b98ff", "#e88aa1", "#5fc7b5", "#e0a458", "#7fbf8f", "#c99ee0", "#e08a6c"];
+  var STORAGE_KEY = "starInlayPuzzle_v2";
 
   function normalize(cells) {
     var minR = Math.min.apply(null, cells.map(function (c) { return c[0]; }));
@@ -680,36 +590,42 @@
     return g;
   }
 
-  var nextPieceId = 1;
   var nextInstanceId = 1;
-  var pieceAutoNameCounter = 1;
+  var DEFAULT_QTY = 4;
 
-  function defaultPieceTypes() {
+  function fixedPieceTypes() {
     var defs = [
-      { name: "单格", color: "#d9b168", qty: 4, shape: [[0, 0]] },
-      { name: "直线-2", color: "#8b98ff", qty: 4, shape: [[0, 0], [0, 1]] },
-      { name: "直角三格", color: "#e88aa1", qty: 3, shape: [[0, 0], [1, 0], [1, 1]] },
-      { name: "方块", color: "#5fc7b5", qty: 2, shape: [[0, 0], [0, 1], [1, 0], [1, 1]] },
-      { name: "T形", color: "#e0a458", qty: 2, shape: [[0, 0], [0, 1], [0, 2], [1, 1]] }
+      { id: "z",  name: "Z形",      color: "#e0708a", shape: [[0, 0], [0, 1], [1, 1], [1, 2]] },
+      { id: "s",  name: "反Z形",    color: "#7fbf8f", shape: [[0, 1], [0, 2], [1, 0], [1, 1]] },
+      { id: "t",  name: "T形",      color: "#9b7fe0", shape: [[0, 0], [0, 1], [0, 2], [1, 1]] },
+      { id: "t2", name: "侧T形",    color: "#9b7fe0", shape: [[0, 0], [1, 0], [1, 1], [2, 0]] },
+      { id: "i",  name: "I形",      color: "#4fb8d9", shape: [[0, 0], [1, 0], [2, 0], [3, 0]] },
+      { id: "i2", name: "横着的I形", color: "#4fb8d9", shape: [[0, 0], [0, 1], [0, 2], [0, 3]] },
+      { id: "l",  name: "L形",      color: "#e0954a", shape: [[0, 0], [1, 0], [2, 0], [2, 1]] },
+      { id: "j",  name: "反L形",    color: "#6f8fe0", shape: [[0, 1], [1, 1], [2, 1], [2, 0]] },
+      { id: "l2", name: "侧L形",    color: "#e0954a", shape: [[0, 0], [0, 1], [0, 2], [1, 0]] },
+      { id: "j2", name: "侧反L形",  color: "#6f8fe0", shape: [[0, 0], [1, 0], [1, 1], [1, 2]] },
+      { id: "o",  name: "正方形",   color: "#e3b94a", shape: [[0, 0], [0, 1], [1, 0], [1, 1]] }
     ];
     return defs.map(function (d) {
-      return { id: "p" + (nextPieceId++), name: d.name, color: d.color, qty: d.qty, shape: normalize(d.shape) };
+      return { id: d.id, name: d.name, color: d.color, qty: DEFAULT_QTY, shape: normalize(d.shape) };
     });
   }
 
   var state = {
     board: { rows: 8, cols: 8, shape: makeShapeGrid(8, 8, true) },
-    editor: { rows: 5, cols: 5, shape: makeShapeGrid(5, 5, false) },
-    pieceTypes: defaultPieceTypes(),
+    pieceTypes: fixedPieceTypes(),
     play: { occupancy: null, instances: [], selectedPieceId: null, transform: null }
   };
   state.play.occupancy = makeShapeGrid(state.board.rows, state.board.cols, null);
 
   function save() {
     try {
+      var qty = {};
+      state.pieceTypes.forEach(function (p) { qty[p.id] = p.qty; });
       var data = {
         board: state.board,
-        pieceTypes: state.pieceTypes,
+        qty: qty,
         play: { instances: state.play.instances }
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -722,14 +638,14 @@
     if (!raw) return;
     var data;
     try { data = JSON.parse(raw); } catch (e) { return; }
-    if (!data || !data.board || !data.pieceTypes) return;
+    if (!data || !data.board) return;
 
     state.board = data.board;
-    state.pieceTypes = data.pieceTypes;
-    state.pieceTypes.forEach(function (p) {
-      var n = parseInt(p.id.replace(/\D/g, ""), 10);
-      if (!isNaN(n) && n >= nextPieceId) nextPieceId = n + 1;
-    });
+    if (data.qty) {
+      state.pieceTypes.forEach(function (p) {
+        if (typeof data.qty[p.id] === "number") p.qty = Math.max(0, data.qty[p.id]);
+      });
+    }
     state.play.occupancy = makeShapeGrid(state.board.rows, state.board.cols, null);
     state.play.instances = [];
     if (data.play && Array.isArray(data.play.instances)) {
@@ -845,102 +761,6 @@
     state.board.shape = g; clearPlayState(); renderBoardEditor(); save();
   });
 
-  // ---------- Piece editor ----------
-  var editorGridEl = document.getElementById("piece-editor-grid");
-  var editorRowsInput = document.getElementById("editor-rows");
-  var editorColsInput = document.getElementById("editor-cols");
-  var pieceNameInput = document.getElementById("piece-name");
-  var pieceColorInput = document.getElementById("piece-color");
-  var pieceQtyInput = document.getElementById("piece-qty");
-
-  function renderPieceEditor() {
-    var rows = state.editor.rows, cols = state.editor.cols;
-    var cs = 30;
-    editorGridEl.style.gridTemplateColumns = "repeat(" + cols + ", " + cs + "px)";
-    editorGridEl.innerHTML = "";
-    for (var r = 0; r < rows; r++) {
-      for (var c = 0; c < cols; c++) {
-        var btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "cell" + (state.editor.shape[r][c] ? " on" : "");
-        btn.style.width = cs + "px";
-        btn.style.height = cs + "px";
-        btn.dataset.r = r; btn.dataset.c = c;
-        editorGridEl.appendChild(btn);
-      }
-    }
-  }
-
-  editorGridEl.addEventListener("click", function (e) {
-    var t = e.target.closest(".cell");
-    if (!t) return;
-    var r = +t.dataset.r, c = +t.dataset.c;
-    state.editor.shape[r][c] = !state.editor.shape[r][c];
-    t.classList.toggle("on", state.editor.shape[r][c]);
-  });
-
-  function applyEditorSize(rows, cols) {
-    rows = Math.max(1, Math.min(8, rows));
-    cols = Math.max(1, Math.min(8, cols));
-    state.editor.shape = resizeShapeGrid(state.editor.shape, rows, cols, false);
-    state.editor.rows = rows; state.editor.cols = cols;
-    renderPieceEditor();
-  }
-
-  editorRowsInput.addEventListener("change", function () { applyEditorSize(+editorRowsInput.value || 1, state.editor.cols); });
-  editorColsInput.addEventListener("change", function () { applyEditorSize(state.editor.rows, +editorColsInput.value || 1); });
-
-  function draftCells() {
-    var cells = [];
-    for (var r = 0; r < state.editor.rows; r++)
-      for (var c = 0; c < state.editor.cols; c++)
-        if (state.editor.shape[r][c]) cells.push([r, c]);
-    return cells;
-  }
-
-  function setDraftFromCells(cells) {
-    var b = boundsOf(cells);
-    var rows = Math.max(b.h, 1), cols = Math.max(b.w, 1);
-    state.editor.rows = rows; state.editor.cols = cols;
-    editorRowsInput.value = rows; editorColsInput.value = cols;
-    state.editor.shape = makeShapeGrid(rows, cols, false);
-    cells.forEach(function (c) { state.editor.shape[c[0]][c[1]] = true; });
-    renderPieceEditor();
-  }
-
-  document.getElementById("editor-rotate").addEventListener("click", function () {
-    var cells = draftCells();
-    if (!cells.length) return;
-    setDraftFromCells(rotateCW(cells));
-  });
-  document.getElementById("editor-flip").addEventListener("click", function () {
-    var cells = draftCells();
-    if (!cells.length) return;
-    setDraftFromCells(flipH(cells));
-  });
-  document.getElementById("editor-clear").addEventListener("click", function () {
-    state.editor.shape = makeShapeGrid(state.editor.rows, state.editor.cols, false);
-    renderPieceEditor();
-  });
-
-  document.getElementById("piece-add").addEventListener("click", function () {
-    var cells = draftCells();
-    if (!cells.length) return;
-    var shape = normalize(cells);
-    var qty = Math.max(1, +pieceQtyInput.value || 1);
-    var color = pieceColorInput.value || PALETTE[state.pieceTypes.length % PALETTE.length];
-    var name = pieceNameInput.value.trim() || ("嵌片-" + (pieceAutoNameCounter++));
-    var id = "p" + (nextPieceId++);
-    state.pieceTypes.push({ id: id, name: name, color: color, qty: qty, shape: shape });
-    pieceNameInput.value = "";
-    pieceQtyInput.value = 1;
-    pieceColorInput.value = PALETTE[state.pieceTypes.length % PALETTE.length];
-    state.editor.shape = makeShapeGrid(state.editor.rows, state.editor.cols, false);
-    renderPieceEditor();
-    renderPieceList();
-    save();
-  });
-
   function miniGrid(shape, color, cellPx) {
     var b = boundsOf(shape);
     var wrap = document.createElement("div");
@@ -959,55 +779,6 @@
       }
     }
     return wrap;
-  }
-
-  function renderPieceList() {
-    var list = document.getElementById("piece-list");
-    list.innerHTML = "";
-    if (!state.pieceTypes.length) {
-      var empty = document.createElement("p");
-      empty.className = "hint";
-      empty.textContent = "还没有嵌片，先在左侧画一个形状吧。";
-      list.appendChild(empty);
-      return;
-    }
-    state.pieceTypes.forEach(function (p) {
-      var card = document.createElement("div");
-      card.className = "piece-card";
-      card.appendChild(miniGrid(p.shape, p.color, 9));
-      var meta = document.createElement("div");
-      meta.className = "meta";
-      var name = document.createElement("div");
-      name.className = "name"; name.textContent = p.name;
-      var sub = document.createElement("div");
-      sub.className = "sub"; sub.textContent = p.shape.length + " 格";
-      meta.appendChild(name); meta.appendChild(sub);
-      card.appendChild(meta);
-
-      var qtyInput = document.createElement("input");
-      qtyInput.type = "number"; qtyInput.min = "0"; qtyInput.max = "99"; qtyInput.value = p.qty;
-      qtyInput.addEventListener("change", function () {
-        p.qty = Math.max(0, +qtyInput.value || 0);
-        save(); renderPieceList();
-      });
-      card.appendChild(qtyInput);
-
-      var del = document.createElement("button");
-      del.className = "icon-btn"; del.type = "button"; del.textContent = "✕";
-      del.title = "删除嵌片";
-      del.addEventListener("click", function () {
-        state.pieceTypes = state.pieceTypes.filter(function (x) { return x.id !== p.id; });
-        var removedIds = state.play.instances.filter(function (i) { return i.pieceTypeId === p.id; }).map(function (i) { return i.id; });
-        state.play.instances = state.play.instances.filter(function (i) { return i.pieceTypeId !== p.id; });
-        for (var r = 0; r < state.board.rows; r++)
-          for (var c = 0; c < state.board.cols; c++)
-            if (removedIds.indexOf(state.play.occupancy[r][c]) !== -1) state.play.occupancy[r][c] = null;
-        if (state.play.selectedPieceId === p.id) { state.play.selectedPieceId = null; state.play.transform = null; }
-        save(); renderPieceList(); renderPlay();
-      });
-      card.appendChild(del);
-      list.appendChild(card);
-    });
   }
 
   // ---------- Play ----------
@@ -1066,21 +837,19 @@
     });
   }
 
+  var cellEls = null;
+  var lastGhostCells = [];
+
   function renderPlayBoard() {
     var rows = state.board.rows, cols = state.board.cols;
     var cs = cellSizeFor(cols);
     playBoardGridEl.style.gridTemplateColumns = "repeat(" + cols + ", " + cs + "px)";
     playBoardGridEl.innerHTML = "";
-
-    var ghost = null;
-    if (hoverAnchor && state.play.selectedPieceId) {
-      var cells = ghostCellsAt(hoverAnchor[0], hoverAnchor[1]);
-      if (cells) ghost = { cells: cells, valid: isValidPlacement(cells) };
-    }
-    var ghostSet = {};
-    if (ghost) ghost.cells.forEach(function (cc) { ghostSet[cc[0] + "," + cc[1]] = ghost.valid; });
+    cellEls = [];
+    lastGhostCells = [];
 
     for (var r = 0; r < rows; r++) {
+      var rowEls = [];
       for (var c = 0; c < cols; c++) {
         var btn = document.createElement("button");
         btn.type = "button";
@@ -1094,10 +863,6 @@
           var inst = state.play.instances.filter(function (i) { return i.id === occ; })[0];
           if (inst) { cls += " filled"; color = inst.color; }
         }
-        var gkey = r + "," + c;
-        if (inBoard && ghostSet.hasOwnProperty(gkey) && !occ) {
-          cls += ghostSet[gkey] ? " ghost-valid" : " ghost-invalid";
-        }
         btn.className = cls;
         btn.style.width = cs + "px";
         btn.style.height = cs + "px";
@@ -1108,19 +873,46 @@
         btn.dataset.r = r; btn.dataset.c = c;
         btn.disabled = !inBoard;
         playBoardGridEl.appendChild(btn);
+        rowEls.push(btn);
       }
+      cellEls.push(rowEls);
     }
+  }
+
+  function clearGhostClasses() {
+    lastGhostCells.forEach(function (cc) {
+      var row = cellEls && cellEls[cc[0]];
+      var el = row && row[cc[1]];
+      if (el) el.classList.remove("ghost-valid", "ghost-invalid");
+    });
+    lastGhostCells = [];
+  }
+
+  function updateGhost() {
+    clearGhostClasses();
+    if (!hoverAnchor || !state.play.selectedPieceId) return;
+    var cells = ghostCellsAt(hoverAnchor[0], hoverAnchor[1]);
+    if (!cells) return;
+    var valid = isValidPlacement(cells);
+    cells.forEach(function (cc) {
+      var r = cc[0], c = cc[1];
+      if (r < 0 || r >= state.board.rows || c < 0 || c >= state.board.cols) return;
+      if (!state.board.shape[r][c] || state.play.occupancy[r][c]) return;
+      var el = cellEls[r][c];
+      if (el) el.classList.add(valid ? "ghost-valid" : "ghost-invalid");
+    });
+    lastGhostCells = cells;
   }
 
   playBoardGridEl.addEventListener("pointerover", function (e) {
     var t = e.target.closest(".cell");
     if (!t || t.classList.contains("void")) { return; }
     hoverAnchor = [+t.dataset.r, +t.dataset.c];
-    renderPlayBoard();
+    updateGhost();
   });
   playBoardGridEl.addEventListener("pointerleave", function () {
     hoverAnchor = null;
-    renderPlayBoard();
+    updateGhost();
   });
 
   playBoardGridEl.addEventListener("click", function (e) {
@@ -1169,33 +961,41 @@
 
   function renderPlayTray() {
     playTrayEl.innerHTML = "";
-    if (!state.pieceTypes.length) {
-      var empty = document.createElement("p");
-      empty.className = "hint";
-      empty.textContent = "还没有嵌片，请先到「嵌片设计」创建。";
-      playTrayEl.appendChild(empty);
-      return;
-    }
     state.pieceTypes.forEach(function (p) {
       var remaining = Math.max(0, p.qty - placedCountFor(p.id));
-      var card = document.createElement("button");
-      card.type = "button";
-      card.className = "tray-card" + (state.play.selectedPieceId === p.id ? " selected" : "") + (remaining === 0 ? " empty" : "");
-      card.disabled = remaining === 0;
-      card.appendChild(miniGrid(p.shape, p.color, 8));
+      var row = document.createElement("div");
+      row.className = "tray-card" + (state.play.selectedPieceId === p.id ? " selected" : "") + (remaining === 0 ? " empty" : "");
+
+      var selectBtn = document.createElement("button");
+      selectBtn.type = "button";
+      selectBtn.className = "tray-select";
+      selectBtn.disabled = remaining === 0;
+      selectBtn.appendChild(miniGrid(p.shape, p.color, 8));
       var meta = document.createElement("div");
       meta.className = "meta";
       var name = document.createElement("div");
       name.className = "name"; name.textContent = p.name;
       meta.appendChild(name);
-      card.appendChild(meta);
+      selectBtn.appendChild(meta);
       var chip = document.createElement("span");
       chip.className = "count-chip";
       var b = document.createElement("b"); b.textContent = remaining;
       chip.appendChild(b); chip.appendChild(document.createTextNode(" / " + p.qty));
-      card.appendChild(chip);
-      card.addEventListener("click", function () { selectPiece(p.id); });
-      playTrayEl.appendChild(card);
+      selectBtn.appendChild(chip);
+      selectBtn.addEventListener("click", function () { selectPiece(p.id); });
+      row.appendChild(selectBtn);
+
+      var qtyInput = document.createElement("input");
+      qtyInput.type = "number"; qtyInput.min = "0"; qtyInput.max = "99"; qtyInput.value = p.qty;
+      qtyInput.className = "tray-qty";
+      qtyInput.title = "调整这种嵌片的库存数量";
+      qtyInput.addEventListener("change", function () {
+        p.qty = Math.max(0, +qtyInput.value || 0);
+        save(); renderPlay();
+      });
+      row.appendChild(qtyInput);
+
+      playTrayEl.appendChild(row);
     });
   }
 
@@ -1263,6 +1063,7 @@
   function renderPlay() {
     renderPlayStats();
     renderPlayBoard();
+    updateGhost();
     renderPlayTray();
     renderSelectedStrip();
   }
@@ -1272,18 +1073,14 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function () {
       renderBoardEditor();
-      if (document.getElementById("tab-play").classList.contains("active")) renderPlayBoard();
+      if (document.getElementById("tab-play").classList.contains("active")) { renderPlayBoard(); updateGhost(); }
     }, 120);
   });
 
   // ---------- init ----------
   boardRowsInput.value = state.board.rows;
   boardColsInput.value = state.board.cols;
-  editorRowsInput.value = state.editor.rows;
-  editorColsInput.value = state.editor.cols;
   renderBoardEditor();
-  renderPieceEditor();
-  renderPieceList();
   renderPlay();
 })();
 </script>
