@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>星象嵌片 · 拼图工坊</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #eef0f6;
+    --bg-2: #e4e7f1;
+    --surface: #ffffff;
+    --surface-2: #f4f5fa;
+    --border: #d8dbe8;
+    --text: #1b1e2c;
+    --text-muted: #5b5f77;
+    --accent: #b8863f;
+    --accent-soft: #b8863f22;
+    --accent-2: #5a63c4;
+    --good: #2f8f57;
+    --good-soft: #2f8f5722;
+    --bad: #c94465;
+    --bad-soft: #c9446522;
+    --void: #d0d3e0;
+    --shadow: 0 1px 2px rgba(20, 22, 40, 0.06), 0 8px 24px rgba(20, 22, 40, 0.06);
+    --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Songti SC", "Noto Serif SC", Georgia, serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Noto Sans Mono CJK SC", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1220;
+      --bg-2: #0b0e1a;
+      --surface: #171c2e;
+      --surface-2: #1e2438;
+      --border: #2c3350;
+      --text: #e9e7f2;
+      --text-muted: #8d90ab;
+      --accent: #d9b168;
+      --accent-soft: #d9b16822;
+      --accent-2: #8b98ff;
+      --good: #6fbf8b;
+      --good-soft: #6fbf8b22;
+      --bad: #e88aa1;
+      --bad-soft: #e88aa122;
+      --void: #232945;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0f1220;
+    --bg-2: #0b0e1a;
+    --surface: #171c2e;
+    --surface-2: #1e2438;
+    --border: #2c3350;
+    --text: #e9e7f2;
+    --text-muted: #8d90ab;
+    --accent: #d9b168;
+    --accent-soft: #d9b16822;
+    --accent-2: #8b98ff;
+    --good: #6fbf8b;
+    --good-soft: #6fbf8b22;
+    --bad: #e88aa1;
+    --bad-soft: #e88aa122;
+    --void: #232945;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
+  }
+
+  :root[data-theme="light"] {
+    --bg: #eef0f6;
+    --bg-2: #e4e7f1;
+    --surface: #ffffff;
+    --surface-2: #f4f5fa;
+    --border: #d8dbe8;
+    --text: #1b1e2c;
+    --text-muted: #5b5f77;
+    --accent: #b8863f;
+    --accent-soft: #b8863f22;
+    --accent-2: #5a63c4;
+    --good: #2f8f57;
+    --good-soft: #2f8f5722;
+    --bad: #c94465;
+    --bad-soft: #c9446522;
+    --void: #d0d3e0;
+    --shadow: 0 1px 2px rgba(20, 22, 40, 0.06), 0 8px 24px rgba(20, 22, 40, 0.06);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    overflow-x: hidden;
+  }
+
+  body {
+    background-image:
+      radial-gradient(1px 1px at 8% 12%, var(--text-muted) 0%, transparent 60%),
+      radial-gradient(1px 1px at 22% 68%, var(--text-muted) 0%, transparent 60%),
+      radial-gradient(1.5px 1.5px at 41% 24%, var(--accent) 0%, transparent 60%),
+      radial-gradient(1px 1px at 63% 82%, var(--text-muted) 0%, transparent 60%),
+      radial-gradient(1px 1px at 78% 15%, var(--text-muted) 0%, transparent 60%),
+      radial-gradient(1.5px 1.5px at 89% 55%, var(--accent) 0%, transparent 60%),
+      radial-gradient(1px 1px at 15% 90%, var(--text-muted) 0%, transparent 60%),
+      radial-gradient(1px 1px at 95% 92%, var(--text-muted) 0%, transparent 60%);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    opacity: 1;
+  }
+
+  .app {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+
+  .hero {
+    padding: 0.5rem 0 1.75rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.6rem;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(1.6rem, 2.6vw, 2.2rem);
+    letter-spacing: 0.01em;
+    margin: 0 0 0.55rem;
+    text-wrap: balance;
+  }
+
+  .lede {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    max-width: 56ch;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+
+  .tab {
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.65rem 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .tab:hover { color: var(--text); }
+
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .tab:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 2px solid var(--accent-2);
+    outline-offset: 2px;
+  }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 1.1rem 1.2rem;
+  }
+
+  .card + .card { margin-top: 1rem; }
+
+  .card h2 {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0 0 0.2rem;
+  }
+
+  .card .hint {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.55;
+    margin: 0 0 0.9rem;
+  }
+
+  .field-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    align-items: end;
+    margin-bottom: 0.9rem;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .field label {
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .field input[type="number"],
+  .field input[type="text"] {
+    width: 5rem;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.9rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  .field input[type="text"] { width: 10rem; font-family: var(--font-body); }
+  .field input[type="color"] {
+    width: 2.6rem;
+    height: 2.1rem;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-2);
+    cursor: pointer;
+  }
+
+  button.btn {
+    font-family: var(--font-body);
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 0.5rem 0.8rem;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  button.btn:hover { border-color: var(--accent); color: var(--accent); }
+  button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  button.btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #201705;
+  }
+  button.btn.primary:hover { color: #201705; filter: brightness(1.06); }
+
+  button.btn.danger:hover { border-color: var(--bad); color: var(--bad); }
+
+  .btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+  .grid-scroll {
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+
+  .grid {
+    display: grid;
+    gap: 3px;
+    width: max-content;
+  }
+
+  .cell {
+    display: block;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--void);
+    cursor: pointer;
+    position: relative;
+  }
+
+  .cell.void {
+    background: transparent;
+    border-color: transparent;
+    cursor: default;
+  }
+
+  .cell.on {
+    background: var(--surface-2);
+    border-color: var(--border);
+    box-shadow: inset 0 0 0 1px var(--accent-soft);
+  }
+
+  .cell.on::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.5;
+  }
+
+  .cell.filled { border-color: var(--fill-color, var(--accent)); }
+  .cell.filled::after { display: none; }
+
+  .cell.ghost-valid { box-shadow: inset 0 0 0 2px var(--good); background: var(--good-soft); }
+  .cell.ghost-invalid { box-shadow: inset 0 0 0 2px var(--bad); background: var(--bad-soft); }
+
+  .piece-editor-wrap { display: flex; gap: 1.2rem; flex-wrap: wrap; align-items: start; }
+
+  .stats-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-bottom: 1.1rem;
+  }
+
+  .pill {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  .pill b {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.95rem;
+    color: var(--text);
+  }
+
+  .pill.accent { border-color: var(--accent-soft); }
+  .pill.accent b { color: var(--accent); }
+
+  .piece-list { display: flex; flex-direction: column; gap: 0.6rem; }
+
+  .piece-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.55rem 0.7rem;
+    background: var(--surface-2);
+  }
+
+  .piece-card .mini-grid { display: grid; gap: 1px; flex-shrink: 0; }
+  .piece-card .mini-cell { width: 9px; height: 9px; border-radius: 1px; background: transparent; }
+  .piece-card .mini-cell.on { background: var(--pc, var(--accent)); }
+
+  .piece-card .meta { flex: 1; min-width: 0; }
+  .piece-card .meta .name {
+    font-size: 0.86rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .piece-card .meta .sub {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .piece-card input[type="number"] {
+    width: 3.4rem;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    padding: 0.3rem 0.4rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.95rem;
+    padding: 0.2rem 0.35rem;
+    border-radius: 5px;
+  }
+  .icon-btn:hover { color: var(--bad); background: var(--bad-soft); }
+
+  .tray-card {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.55rem 0.65rem;
+    background: var(--surface-2);
+    cursor: pointer;
+    color: var(--text);
+    font-family: var(--font-body);
+  }
+
+  .tray-card:hover { border-color: var(--accent); }
+  .tray-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--accent-soft); }
+  .tray-card:disabled, .tray-card.empty { opacity: 0.4; cursor: not-allowed; }
+
+  .tray-card .mini-grid { display: grid; gap: 1px; flex-shrink: 0; }
+  .tray-card .mini-cell { width: 8px; height: 8px; border-radius: 1px; background: transparent; }
+  .tray-card .mini-cell.on { background: var(--pc, var(--accent)); }
+
+  .tray-card .meta { flex: 1; min-width: 0; }
+  .tray-card .name { font-size: 0.85rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .count-chip {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+  }
+  .count-chip b { color: var(--text); }
+
+  .side-stack { display: flex; flex-direction: column; gap: 1rem; }
+
+  .selected-strip {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    background: var(--surface-2);
+    border: 1px dashed var(--border);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.9rem;
+  }
+
+  .confirm-armed { background: var(--bad) !important; border-color: var(--bad) !important; color: #fff !important; }
+
+  footer.note {
+    margin-top: 2rem;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .cell.filled { transition: background 0.15s ease; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="hero">
+    <p class="eyebrow">星象嵌片 · Grid Inlay Workshop</p>
+    <h1>面板与嵌片拼图工具</h1>
+    <p class="lede">自定义面板的形状、嵌片的形状与数量，再把嵌片一块块嵌入面板——像整理星图一样把空间填满。</p>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="board" role="tab" aria-selected="true">① 面板设计</button>
+    <button class="tab" data-tab="piece" role="tab" aria-selected="false">② 嵌片设计</button>
+    <button class="tab" data-tab="play" role="tab" aria-selected="false">③ 拼图</button>
+  </nav>
+
+  <main>
+    <!-- BOARD DESIGN -->
+    <section id="tab-board" class="panel active">
+      <div class="card">
+        <h2>面板尺寸与形状</h2>
+        <p class="hint">先设定网格的行列数，再点击格子来"抠"出面板的可用区域——不必是矩形，星形、环形都可以。</p>
+        <div class="field-row">
+          <div class="field">
+            <label for="board-rows">行数</label>
+            <input id="board-rows" type="number" min="1" max="24" value="8" />
+          </div>
+          <div class="field">
+            <label for="board-cols">列数</label>
+            <input id="board-cols" type="number" min="1" max="24" value="8" />
+          </div>
+          <div class="btn-row">
+            <button class="btn" id="board-fill">全选</button>
+            <button class="btn" id="board-clear">清空</button>
+            <button class="btn" id="board-preset-diamond">菱形预设</button>
+          </div>
+        </div>
+        <div class="grid-scroll">
+          <div class="grid" id="board-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PIECE DESIGN -->
+    <section id="tab-piece" class="panel">
+      <div class="layout">
+        <div class="card">
+          <h2>绘制嵌片形状</h2>
+          <p class="hint">在下方小格子里点选出嵌片的形状，设置颜色与拥有的数量，然后加入嵌片库。</p>
+          <div class="field-row">
+            <div class="field">
+              <label for="piece-name">名称</label>
+              <input id="piece-name" type="text" placeholder="留空自动命名" />
+            </div>
+            <div class="field">
+              <label for="piece-color">颜色</label>
+              <input id="piece-color" type="color" value="#d9b168" />
+            </div>
+            <div class="field">
+              <label for="piece-qty">数量</label>
+              <input id="piece-qty" type="number" min="1" max="99" value="1" />
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="editor-rows">草稿行数</label>
+              <input id="editor-rows" type="number" min="1" max="8" value="5" />
+            </div>
+            <div class="field">
+              <label for="editor-cols">草稿列数</label>
+              <input id="editor-cols" type="number" min="1" max="8" value="5" />
+            </div>
+            <div class="btn-row">
+              <button class="btn" id="editor-rotate">旋转 90°</button>
+              <button class="btn" id="editor-flip">镜像</button>
+              <button class="btn" id="editor-clear">清空草稿</button>
+            </div>
+          </div>
+          <div class="grid-scroll">
+            <div class="grid" id="piece-editor-grid"></div>
+          </div>
+          <div class="btn-row" style="margin-top: 0.9rem;">
+            <button class="btn primary" id="piece-add">加入嵌片库</button>
+          </div>
+        </div>
+
+        <div class="side-stack">
+          <div class="card">
+            <h2>嵌片库</h2>
+            <p class="hint">已创建的嵌片类型，可随时调整数量或删除。</p>
+            <div class="piece-list" id="piece-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLAY -->
+    <section id="tab-play" class="panel">
+      <div class="stats-row" id="play-stats"></div>
+      <div class="layout">
+        <div class="card">
+          <h2>面板</h2>
+          <p class="hint">点击嵌片库中的一块嵌片选中，再点击面板中高亮的位置放置；点击已放置的嵌片可将其收回。</p>
+          <div class="grid-scroll">
+            <div class="grid" id="play-board-grid"></div>
+          </div>
+        </div>
+
+        <div class="side-stack">
+          <div class="card">
+            <h2>已选中</h2>
+            <div class="selected-strip" id="selected-strip">未选中嵌片</div>
+            <div class="btn-row">
+              <button class="btn" id="play-rotate">旋转 (R)</button>
+              <button class="btn" id="play-flip">镜像 (F)</button>
+              <button class="btn" id="play-deselect">取消选择</button>
+            </div>
+          </div>
+          <div class="card">
+            <h2>嵌片库存</h2>
+            <div class="piece-list" id="play-tray"></div>
+          </div>
+          <div class="card">
+            <button class="btn danger" id="play-reset" style="width:100%;">重置拼图</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="note">本地保存于当前浏览器，不会上传到任何服务器。</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORAGE_KEY = "starInlayPuzzle_v1";
+  var PALETTE = ["#d9b168", "#8b98ff", "#e88aa1", "#5fc7b5", "#e0a458", "#7fbf8f", "#c99ee0", "#e08a6c"];
+
+  function normalize(cells) {
+    var minR = Math.min.apply(null, cells.map(function (c) { return c[0]; }));
+    var minC = Math.min.apply(null, cells.map(function (c) { return c[1]; }));
+    var seen = {};
+    var out = [];
+    cells.forEach(function (c) {
+      var r = c[0] - minR, cc = c[1] - minC;
+      var k = r + "," + cc;
+      if (!seen[k]) { seen[k] = true; out.push([r, cc]); }
+    });
+    out.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+    return out;
+  }
+
+  function boundsOf(cells) {
+    var maxR = Math.max.apply(null, cells.map(function (c) { return c[0]; }));
+    var maxC = Math.max.apply(null, cells.map(function (c) { return c[1]; }));
+    return { h: maxR + 1, w: maxC + 1 };
+  }
+
+  function rotateCW(cells) {
+    var maxR = Math.max.apply(null, cells.map(function (c) { return c[0]; }));
+    var rotated = cells.map(function (c) { return [c[1], maxR - c[0]]; });
+    return normalize(rotated);
+  }
+
+  function flipH(cells) {
+    var maxC = Math.max.apply(null, cells.map(function (c) { return c[1]; }));
+    var flipped = cells.map(function (c) { return [c[0], maxC - c[1]]; });
+    return normalize(flipped);
+  }
+
+  function makeShapeGrid(rows, cols, fill) {
+    var g = [];
+    for (var r = 0; r < rows; r++) {
+      var row = [];
+      for (var c = 0; c < cols; c++) row.push(fill);
+      g.push(row);
+    }
+    return g;
+  }
+
+  function resizeShapeGrid(old, rows, cols, fill) {
+    var g = makeShapeGrid(rows, cols, fill);
+    for (var r = 0; r < Math.min(rows, old.length); r++) {
+      for (var c = 0; c < Math.min(cols, old[0] ? old[0].length : 0); c++) {
+        g[r][c] = old[r][c];
+      }
+    }
+    return g;
+  }
+
+  var nextPieceId = 1;
+  var nextInstanceId = 1;
+  var pieceAutoNameCounter = 1;
+
+  function defaultPieceTypes() {
+    var defs = [
+      { name: "单格", color: "#d9b168", qty: 4, shape: [[0, 0]] },
+      { name: "直线-2", color: "#8b98ff", qty: 4, shape: [[0, 0], [0, 1]] },
+      { name: "直角三格", color: "#e88aa1", qty: 3, shape: [[0, 0], [1, 0], [1, 1]] },
+      { name: "方块", color: "#5fc7b5", qty: 2, shape: [[0, 0], [0, 1], [1, 0], [1, 1]] },
+      { name: "T形", color: "#e0a458", qty: 2, shape: [[0, 0], [0, 1], [0, 2], [1, 1]] }
+    ];
+    return defs.map(function (d) {
+      return { id: "p" + (nextPieceId++), name: d.name, color: d.color, qty: d.qty, shape: normalize(d.shape) };
+    });
+  }
+
+  var state = {
+    board: { rows: 8, cols: 8, shape: makeShapeGrid(8, 8, true) },
+    editor: { rows: 5, cols: 5, shape: makeShapeGrid(5, 5, false) },
+    pieceTypes: defaultPieceTypes(),
+    play: { occupancy: null, instances: [], selectedPieceId: null, transform: null }
+  };
+  state.play.occupancy = makeShapeGrid(state.board.rows, state.board.cols, null);
+
+  function save() {
+    try {
+      var data = {
+        board: state.board,
+        pieceTypes: state.pieceTypes,
+        play: { instances: state.play.instances }
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) { /* ignore quota/serialization errors */ }
+  }
+
+  function load() {
+    var raw;
+    try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) { return; }
+    if (!raw) return;
+    var data;
+    try { data = JSON.parse(raw); } catch (e) { return; }
+    if (!data || !data.board || !data.pieceTypes) return;
+
+    state.board = data.board;
+    state.pieceTypes = data.pieceTypes;
+    state.pieceTypes.forEach(function (p) {
+      var n = parseInt(p.id.replace(/\D/g, ""), 10);
+      if (!isNaN(n) && n >= nextPieceId) nextPieceId = n + 1;
+    });
+    state.play.occupancy = makeShapeGrid(state.board.rows, state.board.cols, null);
+    state.play.instances = [];
+    if (data.play && Array.isArray(data.play.instances)) {
+      data.play.instances.forEach(function (inst) {
+        var pt = state.pieceTypes.filter(function (p) { return p.id === inst.pieceTypeId; })[0];
+        if (!pt) return;
+        var ok = inst.cells.every(function (c) {
+          return c[0] >= 0 && c[0] < state.board.rows && c[1] >= 0 && c[1] < state.board.cols &&
+            state.board.shape[c[0]][c[1]] && !state.play.occupancy[c[0]][c[1]];
+        });
+        if (!ok) return;
+        var id = "i" + (nextInstanceId++);
+        var instance = { id: id, pieceTypeId: pt.id, cells: inst.cells, color: pt.color };
+        state.play.instances.push(instance);
+        inst.cells.forEach(function (c) { state.play.occupancy[c[0]][c[1]] = id; });
+      });
+    }
+  }
+
+  load();
+
+  // ---------- Tabs ----------
+  var tabs = document.querySelectorAll(".tab");
+  var panels = document.querySelectorAll(".panel");
+  tabs.forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      tabs.forEach(function (t) { t.classList.remove("active"); t.setAttribute("aria-selected", "false"); });
+      panels.forEach(function (p) { p.classList.remove("active"); });
+      tab.classList.add("active");
+      tab.setAttribute("aria-selected", "true");
+      document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+      if (tab.dataset.tab === "play") renderPlay();
+    });
+  });
+
+  function cellSizeFor(cols) {
+    var avail = Math.min(window.innerWidth - 80, 640);
+    var size = Math.floor(avail / cols);
+    return Math.max(16, Math.min(40, size));
+  }
+
+  // ---------- Board designer ----------
+  var boardGridEl = document.getElementById("board-grid");
+  var boardRowsInput = document.getElementById("board-rows");
+  var boardColsInput = document.getElementById("board-cols");
+
+  function clearPlayState() {
+    state.play.occupancy = makeShapeGrid(state.board.rows, state.board.cols, null);
+    state.play.instances = [];
+    state.play.selectedPieceId = null;
+    state.play.transform = null;
+  }
+
+  function renderBoardEditor() {
+    var rows = state.board.rows, cols = state.board.cols;
+    var cs = cellSizeFor(cols);
+    boardGridEl.style.gridTemplateColumns = "repeat(" + cols + ", " + cs + "px)";
+    boardGridEl.innerHTML = "";
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "cell" + (state.board.shape[r][c] ? " on" : "");
+        btn.style.width = cs + "px";
+        btn.style.height = cs + "px";
+        btn.setAttribute("aria-label", "第" + (r + 1) + "行第" + (c + 1) + "列");
+        btn.dataset.r = r; btn.dataset.c = c;
+        boardGridEl.appendChild(btn);
+      }
+    }
+  }
+
+  boardGridEl.addEventListener("click", function (e) {
+    var t = e.target.closest(".cell");
+    if (!t) return;
+    var r = +t.dataset.r, c = +t.dataset.c;
+    state.board.shape[r][c] = !state.board.shape[r][c];
+    t.classList.toggle("on", state.board.shape[r][c]);
+    clearPlayState();
+    save();
+  });
+
+  function applyBoardSize(rows, cols) {
+    rows = Math.max(1, Math.min(24, rows));
+    cols = Math.max(1, Math.min(24, cols));
+    state.board.shape = resizeShapeGrid(state.board.shape, rows, cols, true);
+    state.board.rows = rows;
+    state.board.cols = cols;
+    clearPlayState();
+    renderBoardEditor();
+    save();
+  }
+
+  boardRowsInput.addEventListener("change", function () { applyBoardSize(+boardRowsInput.value || 1, state.board.cols); });
+  boardColsInput.addEventListener("change", function () { applyBoardSize(state.board.rows, +boardColsInput.value || 1); });
+
+  document.getElementById("board-fill").addEventListener("click", function () {
+    state.board.shape = makeShapeGrid(state.board.rows, state.board.cols, true);
+    clearPlayState(); renderBoardEditor(); save();
+  });
+  document.getElementById("board-clear").addEventListener("click", function () {
+    state.board.shape = makeShapeGrid(state.board.rows, state.board.cols, false);
+    clearPlayState(); renderBoardEditor(); save();
+  });
+  document.getElementById("board-preset-diamond").addEventListener("click", function () {
+    var rows = state.board.rows, cols = state.board.cols;
+    var cr = (rows - 1) / 2, cc = (cols - 1) / 2;
+    var radius = Math.max(cr, cc) + 1;
+    var g = makeShapeGrid(rows, cols, false);
+    for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) {
+      if (Math.abs(r - cr) + Math.abs(c - cc) <= radius) g[r][c] = true;
+    }
+    state.board.shape = g; clearPlayState(); renderBoardEditor(); save();
+  });
+
+  // ---------- Piece editor ----------
+  var editorGridEl = document.getElementById("piece-editor-grid");
+  var editorRowsInput = document.getElementById("editor-rows");
+  var editorColsInput = document.getElementById("editor-cols");
+  var pieceNameInput = document.getElementById("piece-name");
+  var pieceColorInput = document.getElementById("piece-color");
+  var pieceQtyInput = document.getElementById("piece-qty");
+
+  function renderPieceEditor() {
+    var rows = state.editor.rows, cols = state.editor.cols;
+    var cs = 30;
+    editorGridEl.style.gridTemplateColumns = "repeat(" + cols + ", " + cs + "px)";
+    editorGridEl.innerHTML = "";
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "cell" + (state.editor.shape[r][c] ? " on" : "");
+        btn.style.width = cs + "px";
+        btn.style.height = cs + "px";
+        btn.dataset.r = r; btn.dataset.c = c;
+        editorGridEl.appendChild(btn);
+      }
+    }
+  }
+
+  editorGridEl.addEventListener("click", function (e) {
+    var t = e.target.closest(".cell");
+    if (!t) return;
+    var r = +t.dataset.r, c = +t.dataset.c;
+    state.editor.shape[r][c] = !state.editor.shape[r][c];
+    t.classList.toggle("on", state.editor.shape[r][c]);
+  });
+
+  function applyEditorSize(rows, cols) {
+    rows = Math.max(1, Math.min(8, rows));
+    cols = Math.max(1, Math.min(8, cols));
+    state.editor.shape = resizeShapeGrid(state.editor.shape, rows, cols, false);
+    state.editor.rows = rows; state.editor.cols = cols;
+    renderPieceEditor();
+  }
+
+  editorRowsInput.addEventListener("change", function () { applyEditorSize(+editorRowsInput.value || 1, state.editor.cols); });
+  editorColsInput.addEventListener("change", function () { applyEditorSize(state.editor.rows, +editorColsInput.value || 1); });
+
+  function draftCells() {
+    var cells = [];
+    for (var r = 0; r < state.editor.rows; r++)
+      for (var c = 0; c < state.editor.cols; c++)
+        if (state.editor.shape[r][c]) cells.push([r, c]);
+    return cells;
+  }
+
+  function setDraftFromCells(cells) {
+    var b = boundsOf(cells);
+    var rows = Math.max(b.h, 1), cols = Math.max(b.w, 1);
+    state.editor.rows = rows; state.editor.cols = cols;
+    editorRowsInput.value = rows; editorColsInput.value = cols;
+    state.editor.shape = makeShapeGrid(rows, cols, false);
+    cells.forEach(function (c) { state.editor.shape[c[0]][c[1]] = true; });
+    renderPieceEditor();
+  }
+
+  document.getElementById("editor-rotate").addEventListener("click", function () {
+    var cells = draftCells();
+    if (!cells.length) return;
+    setDraftFromCells(rotateCW(cells));
+  });
+  document.getElementById("editor-flip").addEventListener("click", function () {
+    var cells = draftCells();
+    if (!cells.length) return;
+    setDraftFromCells(flipH(cells));
+  });
+  document.getElementById("editor-clear").addEventListener("click", function () {
+    state.editor.shape = makeShapeGrid(state.editor.rows, state.editor.cols, false);
+    renderPieceEditor();
+  });
+
+  document.getElementById("piece-add").addEventListener("click", function () {
+    var cells = draftCells();
+    if (!cells.length) return;
+    var shape = normalize(cells);
+    var qty = Math.max(1, +pieceQtyInput.value || 1);
+    var color = pieceColorInput.value || PALETTE[state.pieceTypes.length % PALETTE.length];
+    var name = pieceNameInput.value.trim() || ("嵌片-" + (pieceAutoNameCounter++));
+    var id = "p" + (nextPieceId++);
+    state.pieceTypes.push({ id: id, name: name, color: color, qty: qty, shape: shape });
+    pieceNameInput.value = "";
+    pieceQtyInput.value = 1;
+    pieceColorInput.value = PALETTE[state.pieceTypes.length % PALETTE.length];
+    state.editor.shape = makeShapeGrid(state.editor.rows, state.editor.cols, false);
+    renderPieceEditor();
+    renderPieceList();
+    save();
+  });
+
+  function miniGrid(shape, color, cellPx) {
+    var b = boundsOf(shape);
+    var wrap = document.createElement("div");
+    wrap.className = "mini-grid";
+    wrap.style.gridTemplateColumns = "repeat(" + b.w + ", " + cellPx + "px)";
+    wrap.style.gridTemplateRows = "repeat(" + b.h + ", " + cellPx + "px)";
+    var set = {};
+    shape.forEach(function (c) { set[c[0] + "," + c[1]] = true; });
+    for (var r = 0; r < b.h; r++) {
+      for (var c = 0; c < b.w; c++) {
+        var d = document.createElement("div");
+        d.className = "mini-cell" + (set[r + "," + c] ? " on" : "");
+        d.style.width = cellPx + "px"; d.style.height = cellPx + "px";
+        if (set[r + "," + c]) d.style.setProperty("--pc", color);
+        wrap.appendChild(d);
+      }
+    }
+    return wrap;
+  }
+
+  function renderPieceList() {
+    var list = document.getElementById("piece-list");
+    list.innerHTML = "";
+    if (!state.pieceTypes.length) {
+      var empty = document.createElement("p");
+      empty.className = "hint";
+      empty.textContent = "还没有嵌片，先在左侧画一个形状吧。";
+      list.appendChild(empty);
+      return;
+    }
+    state.pieceTypes.forEach(function (p) {
+      var card = document.createElement("div");
+      card.className = "piece-card";
+      card.appendChild(miniGrid(p.shape, p.color, 9));
+      var meta = document.createElement("div");
+      meta.className = "meta";
+      var name = document.createElement("div");
+      name.className = "name"; name.textContent = p.name;
+      var sub = document.createElement("div");
+      sub.className = "sub"; sub.textContent = p.shape.length + " 格";
+      meta.appendChild(name); meta.appendChild(sub);
+      card.appendChild(meta);
+
+      var qtyInput = document.createElement("input");
+      qtyInput.type = "number"; qtyInput.min = "0"; qtyInput.max = "99"; qtyInput.value = p.qty;
+      qtyInput.addEventListener("change", function () {
+        p.qty = Math.max(0, +qtyInput.value || 0);
+        save(); renderPieceList();
+      });
+      card.appendChild(qtyInput);
+
+      var del = document.createElement("button");
+      del.className = "icon-btn"; del.type = "button"; del.textContent = "✕";
+      del.title = "删除嵌片";
+      del.addEventListener("click", function () {
+        state.pieceTypes = state.pieceTypes.filter(function (x) { return x.id !== p.id; });
+        var removedIds = state.play.instances.filter(function (i) { return i.pieceTypeId === p.id; }).map(function (i) { return i.id; });
+        state.play.instances = state.play.instances.filter(function (i) { return i.pieceTypeId !== p.id; });
+        for (var r = 0; r < state.board.rows; r++)
+          for (var c = 0; c < state.board.cols; c++)
+            if (removedIds.indexOf(state.play.occupancy[r][c]) !== -1) state.play.occupancy[r][c] = null;
+        if (state.play.selectedPieceId === p.id) { state.play.selectedPieceId = null; state.play.transform = null; }
+        save(); renderPieceList(); renderPlay();
+      });
+      card.appendChild(del);
+      list.appendChild(card);
+    });
+  }
+
+  // ---------- Play ----------
+  var playBoardGridEl = document.getElementById("play-board-grid");
+  var playTrayEl = document.getElementById("play-tray");
+  var selectedStripEl = document.getElementById("selected-strip");
+  var playStatsEl = document.getElementById("play-stats");
+  var hoverAnchor = null;
+
+  function placedCountFor(pieceId) {
+    return state.play.instances.filter(function (i) { return i.pieceTypeId === pieceId; }).length;
+  }
+
+  function currentPieceType() {
+    return state.pieceTypes.filter(function (p) { return p.id === state.play.selectedPieceId; })[0] || null;
+  }
+
+  function ghostCellsAt(r, c) {
+    var pt = currentPieceType();
+    if (!pt || !state.play.transform) return null;
+    return state.play.transform.map(function (d) { return [r + d[0], c + d[1]]; });
+  }
+
+  function isValidPlacement(cells) {
+    return cells.every(function (cc) {
+      var r = cc[0], c = cc[1];
+      return r >= 0 && r < state.board.rows && c >= 0 && c < state.board.cols &&
+        state.board.shape[r][c] && !state.play.occupancy[r][c];
+    });
+  }
+
+  function renderPlayStats() {
+    var total = 0, filled = 0;
+    for (var r = 0; r < state.board.rows; r++)
+      for (var c = 0; c < state.board.cols; c++) {
+        if (state.board.shape[r][c]) { total++; if (state.play.occupancy[r][c]) filled++; }
+      }
+    var pct = total ? Math.round((filled / total) * 100) : 0;
+    var totalPieces = state.pieceTypes.reduce(function (s, p) { return s + p.qty; }, 0);
+    var placedPieces = state.play.instances.length;
+    playStatsEl.innerHTML = "";
+    var items = [
+      ["面板格数", total],
+      ["已填充", filled],
+      ["剩余", total - filled],
+      ["完成度", pct + "%"],
+      ["已放置嵌片", placedPieces + " / " + totalPieces]
+    ];
+    items.forEach(function (it, idx) {
+      var pill = document.createElement("div");
+      pill.className = "pill" + (idx === 3 ? " accent" : "");
+      var b = document.createElement("b"); b.textContent = it[1];
+      pill.appendChild(document.createTextNode(it[0] + " "));
+      pill.appendChild(b);
+      playStatsEl.appendChild(pill);
+    });
+  }
+
+  function renderPlayBoard() {
+    var rows = state.board.rows, cols = state.board.cols;
+    var cs = cellSizeFor(cols);
+    playBoardGridEl.style.gridTemplateColumns = "repeat(" + cols + ", " + cs + "px)";
+    playBoardGridEl.innerHTML = "";
+
+    var ghost = null;
+    if (hoverAnchor && state.play.selectedPieceId) {
+      var cells = ghostCellsAt(hoverAnchor[0], hoverAnchor[1]);
+      if (cells) ghost = { cells: cells, valid: isValidPlacement(cells) };
+    }
+    var ghostSet = {};
+    if (ghost) ghost.cells.forEach(function (cc) { ghostSet[cc[0] + "," + cc[1]] = ghost.valid; });
+
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        var inBoard = state.board.shape[r][c];
+        var cls = "cell";
+        if (!inBoard) cls += " void";
+        else cls += " on";
+        var occ = inBoard ? state.play.occupancy[r][c] : null;
+        var color = null;
+        if (occ) {
+          var inst = state.play.instances.filter(function (i) { return i.id === occ; })[0];
+          if (inst) { cls += " filled"; color = inst.color; }
+        }
+        var gkey = r + "," + c;
+        if (inBoard && ghostSet.hasOwnProperty(gkey) && !occ) {
+          cls += ghostSet[gkey] ? " ghost-valid" : " ghost-invalid";
+        }
+        btn.className = cls;
+        btn.style.width = cs + "px";
+        btn.style.height = cs + "px";
+        if (color) {
+          btn.style.setProperty("--fill-color", color);
+          btn.style.background = "color-mix(in srgb, " + color + " 40%, var(--surface-2))";
+        }
+        btn.dataset.r = r; btn.dataset.c = c;
+        btn.disabled = !inBoard;
+        playBoardGridEl.appendChild(btn);
+      }
+    }
+  }
+
+  playBoardGridEl.addEventListener("pointerover", function (e) {
+    var t = e.target.closest(".cell");
+    if (!t || t.classList.contains("void")) { return; }
+    hoverAnchor = [+t.dataset.r, +t.dataset.c];
+    renderPlayBoard();
+  });
+  playBoardGridEl.addEventListener("pointerleave", function () {
+    hoverAnchor = null;
+    renderPlayBoard();
+  });
+
+  playBoardGridEl.addEventListener("click", function (e) {
+    var t = e.target.closest(".cell");
+    if (!t || t.classList.contains("void")) return;
+    var r = +t.dataset.r, c = +t.dataset.c;
+    var occ = state.play.occupancy[r][c];
+    if (occ) {
+      state.play.instances = state.play.instances.filter(function (i) { return i.id !== occ; });
+      for (var rr = 0; rr < state.board.rows; rr++)
+        for (var cc = 0; cc < state.board.cols; cc++)
+          if (state.play.occupancy[rr][cc] === occ) state.play.occupancy[rr][cc] = null;
+      save(); renderPlay();
+      return;
+    }
+    hoverAnchor = [r, c];
+    var cells = ghostCellsAt(r, c);
+    if (cells && isValidPlacement(cells)) {
+      var pt = currentPieceType();
+      var id = "i" + (nextInstanceId++);
+      state.play.instances.push({ id: id, pieceTypeId: pt.id, cells: cells, color: pt.color });
+      cells.forEach(function (cc) { state.play.occupancy[cc[0]][cc[1]] = id; });
+      state.play.transform = pt.shape.slice();
+      if (placedCountFor(pt.id) >= pt.qty) {
+        state.play.selectedPieceId = null;
+        state.play.transform = null;
+      }
+      save();
+    }
+    renderPlay();
+  });
+
+  function selectPiece(id) {
+    if (state.play.selectedPieceId === id) {
+      state.play.selectedPieceId = null;
+      state.play.transform = null;
+    } else {
+      var pt = state.pieceTypes.filter(function (p) { return p.id === id; })[0];
+      if (!pt) return;
+      if (placedCountFor(pt.id) >= pt.qty) return;
+      state.play.selectedPieceId = id;
+      state.play.transform = pt.shape.slice();
+    }
+    renderPlay();
+  }
+
+  function renderPlayTray() {
+    playTrayEl.innerHTML = "";
+    if (!state.pieceTypes.length) {
+      var empty = document.createElement("p");
+      empty.className = "hint";
+      empty.textContent = "还没有嵌片，请先到「嵌片设计」创建。";
+      playTrayEl.appendChild(empty);
+      return;
+    }
+    state.pieceTypes.forEach(function (p) {
+      var remaining = Math.max(0, p.qty - placedCountFor(p.id));
+      var card = document.createElement("button");
+      card.type = "button";
+      card.className = "tray-card" + (state.play.selectedPieceId === p.id ? " selected" : "") + (remaining === 0 ? " empty" : "");
+      card.disabled = remaining === 0;
+      card.appendChild(miniGrid(p.shape, p.color, 8));
+      var meta = document.createElement("div");
+      meta.className = "meta";
+      var name = document.createElement("div");
+      name.className = "name"; name.textContent = p.name;
+      meta.appendChild(name);
+      card.appendChild(meta);
+      var chip = document.createElement("span");
+      chip.className = "count-chip";
+      var b = document.createElement("b"); b.textContent = remaining;
+      chip.appendChild(b); chip.appendChild(document.createTextNode(" / " + p.qty));
+      card.appendChild(chip);
+      card.addEventListener("click", function () { selectPiece(p.id); });
+      playTrayEl.appendChild(card);
+    });
+  }
+
+  function renderSelectedStrip() {
+    var pt = currentPieceType();
+    selectedStripEl.innerHTML = "";
+    if (!pt) {
+      selectedStripEl.textContent = "未选中嵌片 — 从下方库存中点选一块";
+      return;
+    }
+    selectedStripEl.appendChild(miniGrid(state.play.transform || pt.shape, pt.color, 10));
+    var label = document.createElement("span");
+    label.textContent = pt.name + "（剩余 " + Math.max(0, pt.qty - placedCountFor(pt.id)) + "）";
+    selectedStripEl.appendChild(label);
+  }
+
+  document.getElementById("play-rotate").addEventListener("click", function () {
+    if (!state.play.transform) return;
+    state.play.transform = rotateCW(state.play.transform);
+    renderPlay();
+  });
+  document.getElementById("play-flip").addEventListener("click", function () {
+    if (!state.play.transform) return;
+    state.play.transform = flipH(state.play.transform);
+    renderPlay();
+  });
+  document.getElementById("play-deselect").addEventListener("click", function () {
+    state.play.selectedPieceId = null;
+    state.play.transform = null;
+    renderPlay();
+  });
+
+  var resetArmed = false;
+  var resetTimer = null;
+  document.getElementById("play-reset").addEventListener("click", function (e) {
+    if (!resetArmed) {
+      resetArmed = true;
+      e.target.textContent = "再次点击确认清空";
+      e.target.classList.add("confirm-armed");
+      resetTimer = setTimeout(function () {
+        resetArmed = false;
+        e.target.textContent = "重置拼图";
+        e.target.classList.remove("confirm-armed");
+      }, 3000);
+      return;
+    }
+    clearTimeout(resetTimer);
+    resetArmed = false;
+    e.target.textContent = "重置拼图";
+    e.target.classList.remove("confirm-armed");
+    clearPlayState();
+    save();
+    renderPlay();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    var playTab = document.getElementById("tab-play");
+    if (!playTab.classList.contains("active")) return;
+    if (!state.play.transform) return;
+    if (e.key === "r" || e.key === "R") { state.play.transform = rotateCW(state.play.transform); renderPlay(); }
+    if (e.key === "f" || e.key === "F") { state.play.transform = flipH(state.play.transform); renderPlay(); }
+    if (e.key === "Escape") { state.play.selectedPieceId = null; state.play.transform = null; renderPlay(); }
+  });
+
+  function renderPlay() {
+    renderPlayStats();
+    renderPlayBoard();
+    renderPlayTray();
+    renderSelectedStrip();
+  }
+
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      renderBoardEditor();
+      if (document.getElementById("tab-play").classList.contains("active")) renderPlayBoard();
+    }, 120);
+  });
+
+  // ---------- init ----------
+  boardRowsInput.value = state.board.rows;
+  boardColsInput.value = state.board.cols;
+  editorRowsInput.value = state.editor.rows;
+  editorColsInput.value = state.editor.cols;
+  renderBoardEditor();
+  renderPieceEditor();
+  renderPieceList();
+  renderPlay();
+})();
+</script>
+</body>
+</html>
