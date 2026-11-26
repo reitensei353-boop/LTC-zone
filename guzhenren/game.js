@@ -1384,13 +1384,15 @@
       const face = c.dataset.face;
       const rect = AT["face_" + face];
       const pw = rect ? rect[2] : 38, ph = rect ? rect[3] : 38;
-      c.width = pw; c.height = ph;
+      c.width = Math.max(pw, 144);
+      c.height = Math.max(ph, 144);
       const ctx = c.getContext("2d");
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = true;
+      if (window.HD && HD.paintFace(ctx, face, c.width, c.height)) return;
       ctx.fillStyle = "#1a1c2c";
-      ctx.fillRect(0, 0, pw, ph);
-      if (atlasImg.naturalWidth && rect) drawPart(ctx, atlasImg, rect, undefined, 0, 0, 1, false);
-      else drawPart(ctx, null, undefined, sprites()[face] || sprites().hero, 3, 3, 2, false);
+      ctx.fillRect(0, 0, c.width, c.height);
+      if (atlasImg.naturalWidth && rect) drawPart(ctx, atlasImg, rect, undefined, 0, 0, c.width / pw, false);
+      else drawPart(ctx, null, undefined, sprites()[face] || sprites().hero, 8, 8, 4, false);
     });
   }
   function renderHud() {
@@ -1571,7 +1573,7 @@
     const startClass = save ? "btn" : "btn primary";
     document.getElementById("title").innerHTML =
       '<img class="banner" src="title_banner.png" alt="像素风夜色山寨：方源与电狼">' +
-      '<div class="pad stack"><div class="kicker">— 像素回合制 RPG —</div><h1>蛊真人·青茅山</h1>' +
+      '<div class="pad stack"><div class="kicker">— 类像素回合制 RPG —</div><h1>蛊真人·青茅山</h1>' +
       '<p class="sub">春秋蝉逆转五百年光阴，魔头方源重回十五岁。<br>这一世，他依旧要走魔道。</p>' +
       '<div class="help"><div>十字键：移动（按住连走）</div><div>A：对话 / 调查 / 采花</div><div>B：蛊囊，喂蛊、吸元石</div><div>撞上敌人：回合制战斗</div></div>' +
       cont +
@@ -1607,12 +1609,16 @@
     if (!wrap || wrap.clientWidth === 0) return;
     const maxW = wrap.clientWidth - 6;
     const avail = window.innerHeight || 700;
-    let scale = Math.floor(maxW / CW);
-    if (scale < 1) scale = 1;
-    if (scale > 5) scale = 5;
-    while (scale > 1 && CH * scale > avail - 300) scale -= 1;
-    canvas.style.width = (CW * scale) + "px";
-    canvas.style.height = (CH * scale) + "px";
+    const aspect = CH / CW;
+    let cssW = Math.min(maxW, 440);
+    let cssH = cssW * aspect;
+    const maxH = Math.max(120, avail - 300);
+    if (cssH > maxH) {
+      cssH = maxH;
+      cssW = cssH / aspect;
+    }
+    canvas.style.width = Math.round(cssW) + "px";
+    canvas.style.height = Math.round(cssH) + "px";
   }
 
   function frame() {
@@ -1623,7 +1629,8 @@
       if (!tiles) tiles = buildTiles();
       const spr = sprites();
       const atlas = atlasImg.naturalWidth ? atlasImg : null;
-      ctx.imageSmoothingEnabled = false;
+      if (window.HD) HD.prepare(canvas, ctx);
+      else ctx.imageSmoothingEnabled = false;
       CUR_MAP_ID = state.hero.map || "main";
       if (fx.shake > 0) fx.shake -= 1;
       if (fx.lunge > 0) fx.lunge -= 1;
@@ -1639,59 +1646,8 @@
         const scene = (state.hero.map === "pro" || b.kind === "bnb" || b.kind === "enforcer" || b.kind === "bat") ? "night"
           : (b.kind === "mobei" || b.kind === "chicheng") ? "village"
           : (b.kind === "boss" || b.kind === "bigwolf") ? "night" : "forest";
-        drawBackdrop(ctx, scene, tick);
-        const size = enemySize(b.kind, atlas, true);
-        let scale = !atlas ? 4 : size === 32 ? (BOSS_KINDS.indexOf(b.kind) >= 0 ? 4 : 3) : 4;
-        const span = battleSpan(b.kind, atlas);
-        // Feet rest on y=96, just above the HP bar at y=104. If the opaque
-        // top would leave the canvas, drop to the largest integer scale that
-        // keeps the whole head inside.
-        const contentH = Math.max(1, span.bottom - span.top + 1);
-        if (96 - (span.bottom + 1) * scale + span.top * scale < 2) {
-          scale = Math.max(1, Math.floor(98 / contentH));
-        }
-        const ew = size * scale;
-        const cx = BOSS_KINDS.indexOf(b.kind) >= 0 ? 116 : 124;
-        const sx = fx.shake > 0 ? (fx.shake % 4 < 2 ? 3 : -3) : 0;
-        const ex = cx - ew / 2 + sx - (fx.elunge > 0 ? Math.round(Math.sin((fx.elunge / 12) * Math.PI) * 18) : 0);
-        let ey = 96 - (span.bottom + 1) * scale;
-        const head = ey + span.top * scale;
-        if (head < 2) ey += 2 - head;
-        const foot = ey + (span.bottom + 1) * scale;
-        if (foot > 100) ey -= foot - 100;
-        const rect = enemyRect(b.kind, Math.floor(tick / 10) % 4, true);
-        if (BOSS_KINDS.indexOf(b.kind) >= 0 || b.charging) {
-          ctx.fillStyle = tick % 8 < 4 ? "rgba(255,205,117,0.18)" : "rgba(115,239,247,0.18)";
-          ctx.fillRect(ex + 8, ey + ew / 3, ew - 16, (ew * 2) / 3);
-        }
-        drawPart(ctx, atlas, rect, spr[b.kind], ex, ey, scale, false);
-        if (fx.shake > 0 && fx.shake % 4 < 2) {
-          const fctx = flashCanvas.getContext("2d");
-          fctx.imageSmoothingEnabled = false;
-          fctx.globalCompositeOperation = "source-over";
-          fctx.clearRect(0, 0, 128, 128);
-          drawPart(fctx, atlas, rect, spr[b.kind], 0, 0, scale, false);
-          fctx.globalCompositeOperation = "source-atop";
-          fctx.fillStyle = "#ffffff";
-          fctx.fillRect(0, 0, 128, 128);
-          fctx.globalCompositeOperation = "source-over";
-          ctx.drawImage(flashCanvas, 0, 0, ew, ew, Math.round(ex), Math.round(ey), ew, ew);
-        }
-        if (fx.slash > 0) {
-          ctx.fillStyle = "#ffffff";
-          const p = 10 - fx.slash;
-          for (let i = 0; i < 3; i++) for (let s = 0; s < 6; s++) ctx.fillRect(cx - 20 + i * 12 + s * 4 + p, 40 + s * 5 - p + i * 2, 3, 3);
-        }
-        const pct = clamp(b.hp / b.maxHp, 0, 1);
-        ctx.fillStyle = "#1a1c2c"; ctx.fillRect(94, 104, 68, 9);
-        ctx.fillStyle = "#3a4466"; ctx.fillRect(96, 106, 64, 5);
-        ctx.fillStyle = pct > 0.5 ? "#38b764" : pct > 0.25 ? "#ffcd75" : "#c0394b";
-        ctx.fillRect(96, 106, Math.round(64 * pct), 5);
-        ctx.fillStyle = "rgba(255,255,255,0.35)"; ctx.fillRect(96, 106, Math.round(64 * pct), 1);
-        const lx = fx.lunge > 0 ? Math.round(Math.sin((fx.lunge / 12) * Math.PI) * 16) : 0;
-        if (!(fx.flash > 0 && fx.flash % 4 < 2)) {
-          drawPart(ctx, atlas, atlas ? (state.hero.map === "pro" ? [144, 280, 16, 16] : [16, 0, 16, 16]) : undefined, spr.hero_up, 16 + lx, 88, 3, false);
-        }
+        if (window.HD) HD.drawBattle(ctx, { battle: b, hero: state.hero, fx: fx, tick: tick, scene: scene });
+        else drawBackdrop(ctx, scene, tick);
         if (fx.flash > 8) { ctx.fillStyle = "rgba(192,57,75,0.25)"; ctx.fillRect(0, 0, CW, CH); }
         if (fx.glow > 0) {
           ctx.fillStyle = "#a7f070";
@@ -1728,14 +1684,16 @@
         for (let ty = ty0; ty <= ty0 + VIEW_H; ty++) {
           for (let tx = tx0; tx <= tx0 + VIEW_W; tx++) {
             const ch = tileAt(tx, ty);
-            ctx.drawImage(tiles[ch] || tiles.M, tx * T - camX, ty * T - camY);
+            if (window.HD) HD.blitTile(ctx, ch, tx * T - camX, ty * T - camY);
+            else ctx.drawImage(tiles[ch] || tiles.M, tx * T - camX, ty * T - camY);
           }
         }
         if (CUR_MAP_ID === "main") {
           HOUSES.forEach(function (hs) {
             const px = hs.x * T - camX, py = hs.y * T - camY;
             if (px > CW || py > CH || px < -64 || py < -48) return;
-            if (atlas) drawPart(ctx, atlas, AT[hs.key], undefined, px, py + 1, 1, false);
+            if (window.HD) HD.drawHouse(ctx, hs.key, px, py);
+            else if (atlas) drawPart(ctx, atlas, AT[hs.key], undefined, px, py + 1, 1, false);
             else for (let k = 0; k < 4; k++) { ctx.drawImage(tiles.roof, px + k * T, py); ctx.drawImage(tiles.roof, px + k * T, py + T); ctx.drawImage(tiles.wall, px + k * T, py + 2 * T); }
           });
         }
@@ -1744,26 +1702,36 @@
           if (!n.sprite || !vis(n.x, n.y)) return;
           if (n.id === "remains" && h.stage >= 3) return;
           const fr = Math.floor(tick / 40 + i) % 2;
-          const r = AT[n.sprite];
-          const rect = r ? [r[0], r[1] + fr * 16, 16, 16] : undefined;
-          drawPart(ctx, atlas, rect, spr[n.sprite], n.x * T - camX, n.y * T - camY, 1, false);
+          if (window.HD && n.sprite !== "stele" && n.sprite !== "remains") {
+            HD.drawActor(ctx, n.sprite, "down", fr, n.x * T - camX, n.y * T - camY, 16, 16);
+          } else {
+            const r = AT[n.sprite];
+            const rect = r ? [r[0], r[1] + fr * 16, 16, 16] : undefined;
+            drawPart(ctx, atlas, rect, spr[n.sprite], n.x * T - camX, n.y * T - camY, 1, false);
+          }
         });
         state.enemies.forEach(function (e, i) {
           if (!enemyActive(e, h.stage) || !vis(e.x, e.y)) return;
-          const size = enemySize(e.kind, atlas);
           const fr = Math.floor(tick / 14 + i) % 4;
-          const px = e.x * T + T / 2 - size / 2 - camX;
-          const py = e.y * T + T - size - camY;
           const isBeast = HUMAN_KINDS.indexOf(e.kind) < 0;
-          drawPart(ctx, atlas, enemyRect(e.kind, fr), spr[e.kind], px, py, 1, isBeast && h.x > e.x);
+          const dw = isBeast ? 22 : 16;
+          const dh = isBeast ? 18 : 16;
+          const px = e.x * T + T / 2 - dw / 2 - camX;
+          const py = e.y * T + T - dh - camY;
+          if (window.HD) HD.drawActor(ctx, e.kind, h.x > e.x ? "left" : "right", fr, px, py, dw, dh);
+          else drawPart(ctx, atlas, enemyRect(e.kind, fr), spr[e.kind], px, py, 1, isBeast && h.x > e.x);
         });
         const hpx = vx * T - camX, hpy = vy * T - camY;
         const dirCol = h.dir === "down" ? 0 : h.dir === "up" ? 1 : h.dir === "left" ? 2 : 3;
         const hfr = moving ? Math.floor(tick / 6) % 4 : 0;
-        ctx.fillStyle = "rgba(0,0,0,0.25)";
-        ctx.fillRect(Math.round(hpx) + 3, Math.round(hpy) + 14, 10, 2);
-        drawPart(ctx, atlas, h.map === "pro" ? [128 + dirCol * 16, 280 + hfr * 16, 16, 16] : [dirCol * 16, hfr * 16, 16, 16], h.dir === "up" ? spr.hero_up : spr.hero_down, hpx, hpy - (moving && !atlas ? hfr % 2 : 0), 1, false);
-        if (h.map === "pro") { ctx.fillStyle = "rgba(70,0,24,0.30)"; ctx.fillRect(0, 0, CW, CH); }
+        ctx.fillStyle = "rgba(20,16,24,0.22)";
+        ctx.beginPath();
+        ctx.ellipse(Math.round(hpx) + 8, Math.round(hpy) + 15, 6, 2, 0, 0, 6.3);
+        ctx.fill();
+        if (window.HD) HD.drawActor(ctx, h.map === "pro" ? "hero_old" : "hero", h.dir, hfr, hpx, hpy, 16, 16);
+        else drawPart(ctx, atlas, h.map === "pro" ? [128 + dirCol * 16, 280 + hfr * 16, 16, 16] : [dirCol * 16, hfr * 16, 16, 16], h.dir === "up" ? spr.hero_up : spr.hero_down, hpx, hpy, 1, false);
+        if (window.HD) HD.atmosphere(ctx, h.map);
+        else if (h.map === "pro") { ctx.fillStyle = "rgba(70,0,24,0.30)"; ctx.fillRect(0, 0, CW, CH); }
         if (state.mode === "explore") {
           const adj = findAdjacent(h);
           let tx = -1, ty = -1;

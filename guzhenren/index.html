@@ -80,7 +80,7 @@
     width: 100%;
     height: auto;
     display: block;
-    image-rendering: pixelated;
+    image-rendering: auto;
     background: #1a1c2c;
   }
   .pad { padding: 0 12px; }
@@ -188,7 +188,7 @@
     position: relative;
   }
   .portrait {
-    image-rendering: pixelated;
+    image-rendering: auto;
     border-radius: 8px;
     border: 2px solid var(--text);
     display: block;
@@ -253,10 +253,12 @@
     flex: none;
   }
   #view {
-    width: 176px;
-    height: 144px;
+    width: 100%;
+    max-width: 440px;
+    height: auto;
+    aspect-ratio: 176 / 144;
     display: block;
-    image-rendering: pixelated;
+    image-rendering: auto;
     touch-action: none;
     background: #1a1c2c;
   }
@@ -387,6 +389,7 @@
     <div id="panel" class="scroll"></div>
   </div>
 </div>
+<script src="hd.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

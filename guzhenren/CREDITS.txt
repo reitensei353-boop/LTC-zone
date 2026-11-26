@@ -30,3 +30,10 @@ Terrain tiles (grass, bamboo, rock, cave, path, palisade) are original pixel art
    These are original pixel drawings, not third-party assets.
 
 The title banner is assembled from the same atlas by tools/rebuild_all.py.
+It is still the original low-resolution pixel painting.
+
+6. In-game “类像素” layer (guzhenren/hd.js)
+   Map tiles, houses, and the figures used on the map and in battle are drawn
+   at higher detail with a limited palette, soft gradients, highlights, and fog.
+   Fang Yuan and Bai Ningbing keep the same costumes. The title banner, stone
+   steles, and the smaller NPC dialogue portraits still use the older atlas art.
