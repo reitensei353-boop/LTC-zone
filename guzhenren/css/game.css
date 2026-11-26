@@ -42,7 +42,7 @@ body.portrait #app { visibility: hidden; }
   user-select: none; -webkit-user-select: none;
 }
 #view, #fx { position: absolute; inset: 0; width: 844px; height: 390px; }
-#fx { pointer-events: none; z-index: 6; }
+#fx { pointer-events: none; z-index: 3; }
 .bezel {
   pointer-events: none; position: absolute; inset: 0; z-index: 12;
   box-shadow:
@@ -272,23 +272,29 @@ body.portrait #app { visibility: hidden; }
   text-shadow: 0 1px 2px #000; z-index: 2;
 }
 #b-call {
-  position: absolute; left: 50%; top: 32px; transform: translateX(-50%);
-  background: #f4ead6; border: 2px solid #5c4632; color: var(--ink);
-  padding: 3px 16px; font-family: var(--kai); letter-spacing: 0.22em; z-index: 3;
-  opacity: 0;
+  position: absolute; left: 0; right: 0; top: 42px; z-index: 7;
+  text-align: center; font-family: var(--kai); letter-spacing: 0.52em;
+  font-size: 36px; color: #1a100c; padding: 4px 0 6px; opacity: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(244,234,214,0.96) 12%, rgba(244,234,214,0.96) 88%, transparent);
+  text-shadow: 0 1px 0 #fff8ec;
 }
-#b-call.on { animation: pop 2.4s ease forwards; }
-@keyframes pop { 0% { opacity: 0; transform: translateX(-50%) scale(0.92); } 8% { opacity: 1; transform: translateX(-50%) scale(1); } 78% { opacity: 1; } 100% { opacity: 0; } }
+#b-call::before, #b-call::after {
+  content: ""; display: block; height: 2px; margin: 0 8%;
+  background: linear-gradient(90deg, transparent, #1a100c 20%, #1a100c 80%, transparent);
+}
+#b-call.on { animation: pop 2.6s ease forwards; }
+@keyframes pop { 0% { opacity: 0; } 8% { opacity: 1; } 72% { opacity: 1; } 100% { opacity: 0; } }
 #b-units { position: absolute; inset: 0; z-index: 2; }
 .unit { position: absolute; text-align: center; }
 .unit img { height: 158px; width: auto; filter: drop-shadow(0 6px 4px rgba(0,0,0,0.45)); }
 .unit.flip img { transform: scaleX(-1); }
-.unit.flash img { animation: fl 0.25s linear; }
-@keyframes fl { 40% { filter: brightness(2.4) drop-shadow(0 6px 4px rgba(0,0,0,0.45)); } }
-.unit.lunge { animation: lung 0.28s ease; }
-.unit.lungeR { animation: lungR 0.28s ease; }
-@keyframes lung { 40% { transform: translateX(22px); } }
-@keyframes lungR { 40% { transform: translateX(-22px); } }
+.unit.flash img { animation: fl 0.18s linear; }
+.unit.lit img { filter: brightness(1.85) drop-shadow(0 0 10px #fff); }
+@keyframes fl { 30% { filter: brightness(3.2) drop-shadow(0 0 8px #fff); } }
+.unit.dead { animation: die 0.6s ease forwards; }
+@keyframes die { to { opacity: 0; transform: translate(48px, 16px) rotate(12deg); } }
+.unit.flip.dead { animation-name: dieL; }
+@keyframes dieL { to { opacity: 0; transform: translate(-48px, 16px) rotate(-12deg); } }
 .uname { color: #f6edd8; font-size: 12px; text-shadow: 0 1px 2px #000; font-family: var(--kai); letter-spacing: 0.08em; }
 .buffs { height: 16px; }
 .bf { display: inline-block; width: 14px; height: 14px; font-size: 10px; line-height: 14px; color: #fff; margin: 0 1px; }
@@ -299,7 +305,7 @@ body.portrait #app { visibility: hidden; }
 .hp i { display: block; height: 100%; background: var(--hp); }
 .qibar { width: 78px; height: 7px; margin: 0 auto 2px; background: #102426; border: 1px solid #062022; display: flex; }
 .qibar i { flex: 1; margin-right: 1px; background: #1a3032; }
-.qibar i.on { background: var(--qi); }
+.qibar i.on { background: #8ff7f2; box-shadow: 0 0 6px #d8fffd; }
 #b-skills {
   position: absolute; left: 8px; right: 8px; bottom: 6px; z-index: 4;
   display: flex; gap: 16px; align-items: flex-end;
@@ -319,21 +325,41 @@ body.portrait #app { visibility: hidden; }
 .sbtn:disabled { opacity: 0.4; }
 .qiunder { height: 6px; background: #102426; border: 1px solid #062022; display: flex; }
 .qiunder i { flex: 1; margin-right: 1px; background: #163033; }
-.qiunder i.on { background: var(--qi); }
-.dmg, .heal {
-  position: absolute; z-index: 5; pointer-events: none;
-  font-family: var(--kai); font-style: italic; font-weight: 700; font-size: 40px;
-  animation: rise 2.4s ease-out forwards; text-shadow: 0 2px 0 #2a1008, 0 0 4px #1a0804;
+.qiunder i.on { background: #8ff7f2; box-shadow: 0 0 6px #d8fffd; }
+.dmg, .heal, .crit-tag {
+  position: absolute; z-index: 6; pointer-events: none;
+  font-family: var(--kai); font-weight: 700;
+  animation: rise 2.4s ease-out forwards;
 }
-.dmg { color: #ff6a32; }
-.heal { color: #7dce4a; text-shadow: 0 2px 0 #102808; }
+.dmg { font-style: italic; }
+.dmg.normal { color: #fff; font-size: 52px; text-shadow: 0 2px 0 #1a1008, 0 0 6px rgba(0,0,0,0.7); }
+.dmg.crit { color: #ff4d1a; font-size: 74px; text-shadow: 0 3px 0 #4a1008, 0 0 14px rgba(255,70,20,0.55); }
+.dmg.miss { color: #f3ead7; font-size: 28px; letter-spacing: 0.2em; }
+.crit-tag { color: #ff2418; font-size: 26px; letter-spacing: 0.32em; text-shadow: 0 2px 0 #3a0804; }
+.heal { color: #7dce4a; font-size: 52px; font-style: italic; text-shadow: 0 2px 0 #102808; }
 @keyframes rise {
-  0% { transform: translate(-40%, 0) rotate(-8deg); opacity: 1; }
-  65% { transform: translate(-40%, -18px) rotate(-10deg); opacity: 1; }
-  100% { transform: translate(-40%, -48px) rotate(-16deg); opacity: 0; }
+  0% { transform: translate(-40%, 8px) rotate(-8deg); opacity: 1; }
+  70% { transform: translate(-40%, -28px) rotate(-10deg); opacity: 1; }
+  100% { transform: translate(-40%, -64px) rotate(-16deg); opacity: 0; }
 }
-#battle.shake { animation: sk 0.28s linear; }
-@keyframes sk { 25% { transform: translate(3px, -1px); } 50% { transform: translate(-3px, 1px); } 75% { transform: translate(2px, 0); } }
+#battle.hitflash::after {
+  content: ""; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background: rgba(255,255,255,0.78);
+  animation: hitfade 0.14s linear forwards;
+}
+@keyframes hitfade { to { opacity: 0; } }
+#battle.shake { animation: sk 0.22s linear; }
+#battle.shake-sm { animation: sks 0.16s linear; }
+@keyframes sk {
+  20% { transform: translate3d(8px, -4px, 0); }
+  45% { transform: translate3d(-7px, 3px, 0); }
+  70% { transform: translate3d(4px, 2px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+@keyframes sks {
+  30% { transform: translate3d(3px, -1px, 0); }
+  60% { transform: translate3d(-3px, 1px, 0); }
+}
 
 #end {
   position: absolute; inset: 0; z-index: 18;

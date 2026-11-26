@@ -7,7 +7,8 @@
   const COLS = 32;
   const ROWS = 18;
   const VIEW = { x: 8, y: 42, w: 708, h: 286 };
-  const SPRITE_H = 28;
+  const SPRITE_H = 48;
+  const DIRS = ["down", "left", "right", "up"];
   const $ = (id) => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const FAST = params.get("fast") === "1" || params.get("shot");
@@ -61,7 +62,11 @@
       x: 10, y: 8,
       path: [],
       flip: false,
+      facing: "down",
+      frame: 1,
       moving: false,
+      moveFrom: null,
+      moveStart: 0,
       trail: [],
       party: ["wei"],
       focus: "wei",
@@ -147,8 +152,10 @@
     const list = [];
     if (!state.flags.won) {
       list.push({ id: "mao", name: "茅十八", x: 12, y: 12, who: "mao", bang: !state.flags.met });
-      list.push({ id: "guan", name: "官差", x: 22, y: 13, who: "guan", bang: !state.flags.met });
-      list.push({ id: "guan2", name: "官差", x: 26, y: 16, who: "guan", bang: false });
+      const g1 = mover("guan");
+      const g2 = mover("guan2");
+      list.push({ id: "guan", name: "官差", x: g1.x, y: g1.y, who: "guan", facing: g1.facing, frame: g1.frame, moving: true, bang: !state.flags.met });
+      list.push({ id: "guan2", name: "官差", x: g2.x, y: g2.y, who: "guan", facing: g2.facing, frame: g2.frame, moving: true, bang: false });
     } else if (state.party.includes("mao")) {
       list.push({ id: "mao", name: "茅十八", x: state.x, y: state.y, who: "mao", hidden: true });
     }
@@ -203,10 +210,11 @@
     });
     questBlock();
     const mapOpen = state.panel || state.battle || state.talk;
-    $("top").hidden = !!state.battle;
-    $("side").hidden = !!state.battle;
-    $("dock").hidden = !!state.battle || !!state.panel;
-    $("quest").hidden = !!state.battle || !!state.panel;
+    const hideMap = !!state.battle || !!state.walkDemo;
+    $("top").hidden = hideMap;
+    $("side").hidden = hideMap;
+    $("dock").hidden = hideMap || !!state.panel;
+    $("quest").hidden = hideMap || !!state.panel;
   }
 
   function goInteract(n) {
@@ -385,8 +393,9 @@
   }
 
   function cam() {
-    const px = (state.x + 0.5) * TILE;
-    const py = (state.y + 0.35) * TILE;
+    const pd = playerDraw(performance.now());
+    const px = (pd.x + 0.5) * TILE;
+    const py = (pd.y + 0.35) * TILE;
     let cx = px - VIEW.w / 2;
     let cy = py - VIEW.h / 2;
     cx = Math.max(0, Math.min(MAPW - VIEW.w, cx));
@@ -397,13 +406,19 @@
   function stepMove() {
     if (!state.path.length || state.talk || state.battle) return;
     const [nx, ny] = state.path.shift();
-    state.flip = nx < state.x;
+    const dx = nx - state.x;
+    const dy = ny - state.y;
+    state.flip = dx < 0;
+    if (Math.abs(dx) > Math.abs(dy)) state.facing = dx > 0 ? "right" : "left";
+    else if (dy > 0) state.facing = "down";
+    else if (dy < 0) state.facing = "up";
     state.trail.push([state.x, state.y]);
     if (state.trail.length > 6) state.trail.shift();
+    state.moveFrom = { x: state.x, y: state.y };
+    state.moveStart = performance.now();
     state.x = nx; state.y = ny;
     state.moving = true;
     if (!state.path.length) {
-      state.moving = false;
       const id = state.pending;
       state.pending = null;
       hud();
@@ -413,8 +428,116 @@
       }
     }
   }
+  function playerDraw(now) {
+    const dur = state.fast ? 40 : 140;
+    let x = state.x;
+    let y = state.y;
+    let moving = state.path.length > 0;
+    if (state.moveFrom) {
+      const u = Math.min(1, (now - state.moveStart) / dur);
+      x = state.moveFrom.x + (state.x - state.moveFrom.x) * u;
+      y = state.moveFrom.y + (state.y - state.moveFrom.y) * u;
+      if (u < 1) moving = true;
+      else if (!state.path.length) state.moving = false;
+    }
+    return { x, y, frame: moving ? Math.floor(now / 110) % 4 : 1, moving };
+  }
+  function mover(id) {
+    if (!state.movers) {
+      state.movers = {
+        guan: { x: 22, y: 13, facing: "right", frame: 0, i: 0, leg: [[23, 13], [24, 13], [25, 13], [26, 13], [25, 13], [24, 13], [23, 13], [22, 13]] },
+        guan2: { x: 26, y: 16, facing: "left", frame: 2, i: 0, leg: [[25, 16], [24, 16], [23, 16], [22, 16], [23, 16], [24, 16], [25, 16], [26, 16]] },
+      };
+    }
+    return state.movers[id];
+  }
+  function stepMovers(now) {
+    if (state.map !== "lichun" || state.battle || state.flags.won || state.talk) return;
+    ["guan", "guan2"].forEach((id) => {
+      const m = mover(id);
+      if (!m.nextAt) m.nextAt = now + 200;
+      if (now < m.nextAt) return;
+      m.nextAt = now + 200;
+      const step = m.leg[m.i % m.leg.length];
+      m.i++;
+      const nx = step[0];
+      const ny = step[1];
+      const dx = nx - m.x;
+      const dy = ny - m.y;
+      if (dx || dy) m.facing = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up");
+      m.from = { x: m.x, y: m.y };
+      m.t0 = now;
+      m.x = nx;
+      m.y = ny;
+      m.frame = (m.frame + 1) % 4;
+    });
+  }
+  function moverDraw(id, now) {
+    const m = mover(id);
+    const dur = 200;
+    let x = m.x;
+    let y = m.y;
+    if (m.from && m.t0) {
+      const u = Math.min(1, ((now || performance.now()) - m.t0) / dur);
+      x = m.from.x + (m.x - m.from.x) * u;
+      y = m.from.y + (m.y - m.from.y) * u;
+    }
+    return { x, y, facing: m.facing, frame: Math.floor((now || 0) / 110) % 4 };
+  }
 
+  function walkCell(who) {
+    const sheet = img["walk_" + who];
+    if (!sheet) return null;
+    return { sheet, w: sheet.width / 4, h: sheet.height / 4 };
+  }
+  function drawSheet(ctx, who, dir, frame, footx, footy) {
+    const cell = walkCell(who);
+    if (!cell) return;
+    const row = Math.max(0, DIRS.indexOf(dir));
+    const col = ((frame % 4) + 4) % 4;
+    const dh = SPRITE_H;
+    const dw = dh * (cell.w / cell.h);
+    ctx.drawImage(cell.sheet, col * cell.w, row * cell.h, cell.w, cell.h, footx - dw / 2, footy - dh + 4, dw, dh);
+  }
+  function drawBody(ctx, who, footx, footy) {
+    const im = img[who];
+    if (!im) return;
+    const h = SPRITE_H;
+    const w = h * (im.width / im.height);
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.beginPath();
+    ctx.ellipse(footx, footy, w * 0.32, 3.2, 0, 0, 7);
+    ctx.fill();
+    ctx.drawImage(im, footx - w / 2, footy - h, w, h);
+  }
+  function drawWalkDemo() {
+    const ctx = $("view").getContext("2d");
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = "#2c3238";
+    ctx.fillRect(0, 0, 844, 390);
+    ctx.fillStyle = "#f0e2c8";
+    ctx.font = "14px KaiTi, STKaiti, serif";
+    const names = [["wei", "韦小宝"], ["mao", "茅十八"], ["guan", "官差"]];
+    const labs = ["下", "左", "右", "上"];
+    names.forEach((pair, ni) => {
+      const cell = walkCell(pair[0]);
+      if (!cell) return;
+      const y0 = 4 + ni * 128;
+      ctx.fillText(pair[1], 8, y0 + 16);
+      const dw = 44;
+      const dh = Math.round(dw * (cell.h / cell.w));
+      const step = dw + 2;
+      labs.forEach((lab, di) => {
+        const x0 = 72 + di * (step * 4 + 6);
+        ctx.fillText(lab, x0, y0 + 12);
+        for (let f = 0; f < 4; f++) {
+          ctx.drawImage(cell.sheet, f * cell.w, di * cell.h, cell.w, cell.h, x0 + f * step, y0 + 16, dw, dh);
+        }
+      });
+    });
+  }
   function drawWorld(t) {
+    if (state.walkDemo) { drawWalkDemo(); return; }
     if (state.battle) return;
     const ctx = $("view").getContext("2d");
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -441,39 +564,34 @@
       ctx.globalCompositeOperation = "source-over";
     }
     const actors = [];
-    actors.push({ img: img.wei, x: state.x, y: state.y, flip: state.flip, who: "wei" });
+    const pd = playerDraw(t || performance.now());
+    actors.push({ who: "wei", x: pd.x, y: pd.y, facing: state.facing, frame: pd.frame, moving: pd.moving });
     if (state.party.includes("mao") && !state.battle) {
       const tr = state.trail.length ? state.trail[state.trail.length - 1] : [state.x, state.y];
-      actors.push({ img: img.mao, x: tr[0], y: tr[1], flip: state.flip, who: "mao" });
+      const prev = state.trail.length > 1 ? state.trail[state.trail.length - 2] : [state.x, state.y];
+      const fdx = tr[0] - prev[0];
+      const fdy = tr[1] - prev[1];
+      let face = state.facing;
+      if (fdx || fdy) face = Math.abs(fdx) >= Math.abs(fdy) ? (fdx > 0 ? "right" : "left") : (fdy > 0 ? "down" : "up");
+      actors.push({ who: "mao", x: tr[0], y: tr[1], facing: face, frame: pd.frame, moving: pd.moving });
     }
     npcs().forEach((n) => {
       if (n.hidden) return;
       if (n.who === "mao" && state.party.includes("mao")) return;
-      const face = n.who === "mao" ? img.mao : n.who === "guan" ? img.guan : null;
-      if (face) actors.push({ img: face, x: n.x, y: n.y, flip: false, who: n.who, npc: n });
-      else actors.push({ img: null, x: n.x, y: n.y, flip: false, who: n.who, npc: n });
+      if (n.id === "guan" || n.id === "guan2") {
+        const mv = moverDraw(n.id, t || performance.now());
+        actors.push({ who: "guan", x: mv.x, y: mv.y, facing: mv.facing, frame: mv.frame, moving: true, npc: n });
+      } else if (n.who === "mao" || n.who === "guan") {
+        actors.push({ who: n.who, x: n.x, y: n.y, facing: n.facing || "down", frame: n.frame || 1, moving: true, npc: n });
+      } else actors.push({ who: null, x: n.x, y: n.y, npc: n });
     });
     actors.sort((a, b) => a.y - b.y);
-    const bob = state.moving ? Math.sin(t / 90) * 1.6 : Math.sin(t / 380) * 0.5;
     actors.forEach((a) => {
       const footx = (a.x + 0.5) * TILE - cx + VIEW.x;
-      const footy = (a.y + 1) * TILE - 8 - cy + VIEW.y + ((a.who === "wei" || (a.who === "mao" && state.party.includes("mao"))) ? bob : 0);
-      if (a.img) {
-        const h = SPRITE_H;
-        const w = h * (a.img.width / a.img.height);
-        ctx.save();
-        ctx.translate(footx, footy);
-        if (a.flip) ctx.scale(-1, 1);
-        ctx.fillStyle = "rgba(0,0,0,0.28)";
-        ctx.beginPath();
-        ctx.ellipse(0, 0, w * 0.35, 3, 0, 0, 7);
-        ctx.fill();
-        ctx.drawImage(a.img, -w / 2, -h, w, h);
-        ctx.restore();
-        if (a.npc) drawMark(ctx, footx, footy - h - 4, a.npc);
-      } else if (a.npc) {
-        drawMark(ctx, footx, footy - 20, a.npc);
-      }
+      const footy = (a.y + 1) * TILE - 8 - cy + VIEW.y;
+      if (a.who && img["walk_" + a.who]) drawSheet(ctx, a.who, a.facing || "down", a.moving ? a.frame : 1, footx, footy);
+      else if (a.who) drawBody(ctx, a.who, footx, footy);
+      if (a.npc) drawMark(ctx, footx, footy - SPRITE_H - 6, a.npc);
     });
     ctx.restore();
   }
@@ -756,7 +874,7 @@
     hud();
     renderBattle();
     if (params.get("shot") === "battle") {
-      setTimeout(() => playerSkill("wei", "brawl"), 60);
+      setTimeout(() => playerSkill("wei", "dagger"), 80);
     }
   }
   function renderBattle() {
@@ -849,37 +967,88 @@
       advanceTurn();
     });
   }
+  function unitLeft(u) {
+    const pos = (u.side === "ally" ? [[150, 292], [270, 300]] : [[540, 300], [660, 292], [770, 304]])[u.slot];
+    return pos[0] - 40;
+  }
   function resolveSkill(user, sk, done) {
     callout(sk.name);
     const foes = state.battle.units.filter((u) => u.hp > 0 && u.side !== user.side);
     if (!foes.length) { done(); return; }
     const targets = sk.aoe ? foes : [foes[0]];
     const el = $("u-" + user.id);
-    if (el) el.classList.add(user.side === "ally" ? "lunge" : "lungeR");
-    setTimeout(() => {
-      if (user.blind && Math.random() < 0.4) {
-        floatText("失误", targets[0], false);
+    const big = sk.qi > 0 || sk.aoe;
+    if (el) {
+      const dest = unitLeft(targets[0]) + (user.side === "ally" ? -86 : 78);
+      const delta = dest - unitLeft(user);
+      el.style.zIndex = "4";
+      el.style.transition = "transform 0.11s ease-in";
+      el.style.transform = "translate3d(" + delta + "px,0,0)";
+      slashTravel(user, targets[0], big);
+    }
+    const hit = () => {
+      const missed = user.blind && Math.random() < 0.4 && params.get("shot") !== "battle";
+      const root = $("battle");
+      if (missed) {
+        floatNum("失误", targets[0], { miss: true });
       } else {
-        targets.forEach((tg) => {
+        let killed = false;
+        targets.forEach((tg, i) => {
           const weak = user.weak ? 0.8 : 1;
-          const d = Math.max(1, Math.round((user.atk * sk.mult - tg.def * 0.3) * weak * (0.9 + Math.random() * 0.22)));
+          let d = Math.max(1, Math.round((user.atk * sk.mult - tg.def * 0.3) * weak * (0.92 + Math.random() * 0.16)));
+          const crit = params.get("shot") === "battle" ? i === 0 : sk.qi > 0 && Math.random() < 0.3;
+          if (crit) d = Math.round(d * 1.7);
           tg.hp = Math.max(0, tg.hp - d);
+          if (tg.hp <= 0) killed = true;
           if (sk.weak) tg.weak = true;
           if (sk.blind) tg.blind = 2;
-          floatText("-" + d, tg, false);
-          burst(tg);
+          floatNum(String(d), tg, { crit, stack: i });
+          const tel = $("u-" + tg.id);
+          if (tel) {
+            tel.classList.remove("flash");
+            void tel.offsetWidth;
+            tel.classList.add("flash");
+            if (tg.hp <= 0) tel.classList.add("dead");
+            if (params.get("shot") === "battle") tel.classList.add("lit");
+          }
+          slashAt(tg, big);
         });
-        $("battle").classList.remove("shake");
-        void $("battle").offsetWidth;
-        $("battle").classList.add("shake");
+        if (user.who === "mao" && user.hp < user.hpMax && !user.healed) {
+          user.healed = true;
+          const heal = 12;
+          user.hp = Math.min(user.hpMax, user.hp + heal);
+          floatNum("+" + heal, user, { heal: true, stack: 1 });
+        }
+        if (params.get("shot") === "battle") {
+          const mao = state.battle.units.find((u) => u.id === "mao");
+          if (mao) floatNum("+16", mao, { heal: true, stack: 0 });
+        }
+        root._killed = killed;
       }
-      renderBattle();
-      targets.forEach((tg) => {
-        const tel = $("u-" + tg.id);
-        if (tel && tg.hp > 0) tel.classList.add("flash");
-      });
-      setTimeout(done, state.fast ? 30 : 420);
-    }, state.fast ? 20 : 180);
+      syncBars();
+      root.classList.remove("shake", "shake-sm", "hitflash");
+      void root.offsetWidth;
+      root.classList.add(big ? "shake" : "shake-sm", "hitflash");
+      if (params.get("shot") === "battle") return;
+      if (el) {
+        el.style.transition = "transform 0.16s ease-out";
+        el.style.transform = "translate3d(0,0,0)";
+      }
+      const wait = state.fast ? 40 : (root._killed ? 640 : 420);
+      setTimeout(done, wait);
+    };
+    setTimeout(hit, state.fast ? 30 : 120);
+  }
+  function syncBars() {
+    if (!state.battle) return;
+    state.battle.units.forEach((u) => {
+      const el = $("u-" + u.id);
+      if (!el) return;
+      const bar = el.querySelector(".hp i");
+      if (bar) bar.style.width = Math.max(0, (u.hp / u.hpMax) * 100) + "%";
+      const q = el.querySelector(".qibar");
+      if (q) q.innerHTML = qiSeg(u.qi);
+    });
   }
   function callout(name) {
     const el = $("b-call");
@@ -888,35 +1057,77 @@
     void el.offsetWidth;
     el.classList.add("on");
   }
-  function floatText(text, unit, heal) {
+  function floatNum(text, unit, opt) {
+    opt = opt || {};
     const posA = [[150, 292], [270, 300]];
     const posE = [[540, 300], [660, 292], [770, 304]];
     const pos = unit.side === "ally" ? posA[unit.slot] : posE[unit.slot];
     const n = document.createElement("div");
-    n.className = heal ? "heal" : "dmg";
+    n.className = opt.heal ? "heal" : opt.miss ? "dmg miss" : opt.crit ? "dmg crit" : "dmg normal";
     n.textContent = text;
-    n.style.left = pos[0] + "px";
-    n.style.top = (pos[1] - 150) + "px";
+    n.style.left = (pos[0] - 10 + (opt.stack || 0) * 22) + "px";
+    n.style.top = (pos[1] - 132 - (opt.stack || 0) * 18) + "px";
     $("battle").appendChild(n);
-    setTimeout(() => n.remove(), params.get("shot") === "battle" ? 20000 : 1100);
+    if (opt.crit) {
+      const tag = document.createElement("div");
+      tag.className = "crit-tag";
+      tag.textContent = "暴击";
+      tag.style.left = (pos[0] - 36) + "px";
+      tag.style.top = (pos[1] - 172) + "px";
+      $("battle").appendChild(tag);
+      setTimeout(() => tag.remove(), params.get("shot") === "battle" ? 20000 : 1300);
+    }
+    setTimeout(() => n.remove(), params.get("shot") === "battle" ? 20000 : 1300);
   }
-  function burst(unit) {
-    const el = $("u-" + unit.id);
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const app = $("app").getBoundingClientRect();
-    const scale = app.width / 844;
-    const x = (r.left - app.left) / scale + 36;
-    const y = (r.top - app.top) / scale + 70;
-    for (let i = 0; i < 10; i++) {
+  function unitPoint(unit) {
+    const pos = (unit.side === "ally" ? [[150, 292], [270, 300]] : [[540, 300], [660, 292], [770, 304]])[unit.slot];
+    return { x: pos[0], y: pos[1] - 100 };
+  }
+  function slashTravel(user, target, big) {
+    const a = unitPoint(user);
+    const b = unitPoint(target);
+    for (let i = 0; i < 2; i++) {
+      const t = 0.45 + i * 0.2;
       sparks.push({
-        x, y,
-        vx: (Math.random() - 0.5) * 5,
-        vy: (Math.random() - 0.7) * 4,
-        r: 5 + Math.random() * 12,
+        kind: "slash",
+        x: a.x + (b.x - a.x) * t,
+        y: a.y + (b.y - a.y) * t - 10,
+        len: big ? 70 : 46,
+        rot: -0.8 + i * 0.5,
+        life: 0.9,
+        wide: false,
+      });
+    }
+  }
+  function slashAt(unit, big) {
+    const p = unitPoint(unit);
+    const x = p.x;
+    const y = p.y;
+    const n = big ? 6 : 3;
+    for (let i = 0; i < n; i++) {
+      sparks.push({
+        kind: "ink",
+        x: x + (Math.random() - 0.45) * (big ? 220 : 50),
+        y: y + (Math.random() - 0.5) * (big ? 150 : 40),
+        vx: 0,
+        vy: 0,
+        r: big ? 28 + Math.random() * 70 : 8 + Math.random() * 14,
         life: 1,
       });
     }
+    const strokes = big ? 2 : 1;
+    for (let i = 0; i < strokes; i++) {
+      sparks.push({
+        kind: "slash",
+        x: x - 10,
+        y: y + i * 8,
+        len: big ? 210 : 78,
+        rot: -0.95 + i * 0.85,
+        life: 1,
+        wide: big,
+      });
+    }
+    if (sparks.length > 16) sparks.splice(0, sparks.length - 16);
   }
   function advanceTurn() {
     const b = state.battle;
@@ -973,18 +1184,47 @@
 
   const sparks = [];
   function drawFx() {
-    const ctx = $("fx").getContext("2d");
+    const canvas = $("fx");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, 844, 390);
     for (let i = sparks.length - 1; i >= 0; i--) {
       const p = sparks[i];
-      p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+      if (params.get("shot") !== "battle") p.life -= p.kind === "slash" ? 0.045 : 0.03;
       if (p.life <= 0) { sparks.splice(i, 1); continue; }
-      ctx.globalAlpha = Math.max(0, p.life);
-      ctx.fillStyle = "rgba(20,16,14,0.85)";
-      ctx.beginPath();
-      ctx.ellipse(p.x, p.y, p.r, p.r * 0.6, p.vx, 0, 7);
-      ctx.fill();
-      ctx.globalAlpha = 1;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life));
+      if (p.kind === "slash") {
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot || 0);
+        ctx.lineCap = "round";
+        const len = p.len;
+        ctx.fillStyle = p.wide ? "rgba(14,10,8,0.9)" : "rgba(20,14,10,0.88)";
+        ctx.beginPath();
+        ctx.moveTo(-len, 10);
+        ctx.quadraticCurveTo(0, -len * 0.42, len * 0.92, -4);
+        ctx.quadraticCurveTo(len * 0.15, -len * 0.12, -len * 0.55, p.wide ? 28 : 16);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,248,236,0.8)";
+        ctx.lineWidth = p.wide ? 3 : 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-len * 0.7, 8);
+        ctx.quadraticCurveTo(0, -len * 0.28, len * 0.65, 0);
+        ctx.stroke();
+      } else {
+        p.x += p.vx || 0;
+        p.y += p.vy || 0;
+        const g = ctx.createRadialGradient(p.x, p.y, p.r * 0.15, p.x, p.y, p.r);
+        g.addColorStop(0, "rgba(10,8,6,0.82)");
+        g.addColorStop(0.55, "rgba(18,14,12,0.45)");
+        g.addColorStop(1, "rgba(18,14,12,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, p.r, p.r * 0.72, (p.x % 7) * 0.2, 0, 7);
+        ctx.fill();
+      }
+      ctx.restore();
     }
   }
 
@@ -994,11 +1234,11 @@
     if (!state || !masks) return;
     if (!state.battle) {
       moveAcc += state.fast ? 40 : 16;
-      const step = state.fast ? 40 : 130;
-      if (moveAcc > step) { moveAcc = 0; stepMove(); if (!state.path.length) hud(); }
+      const step = state.fast ? 40 : 140;
+      if (moveAcc > step) { moveAcc = 0; stepMove(); stepMovers(t || performance.now()); if (!state.path.length) hud(); }
+      else stepMovers(t || performance.now());
       drawWorld(t || 0);
-    } else drawFx();
-    if (state.battle) drawFx();
+    } else if (sparks.length) drawFx();
   }
 
   function save() {
@@ -1102,6 +1342,7 @@
   function applyShot(shot) {
     state.flags.intro = 1;
     if (shot === "street") { hud(); return; }
+    if (shot === "walk") { state.walkDemo = true; hud(); return; }
     if (shot === "lichun" || shot === "talk" || shot === "char" || shot === "battle" || shot === "end") {
       state.map = "lichun";
       state.flags.lichun = 1;
@@ -1133,9 +1374,10 @@
       load("map_yangzhou"), load("map_lichun"), load("bg_alley"),
       load("wei"), load("mao"), load("guan"),
       load("bust_wei"), load("bust_mao"), load("bust_guan"),
+      load("walk_wei"), load("walk_mao"), load("walk_guan"),
       fetch("assets/masks.json").then((r) => r.json()),
     ]).then((all) => {
-      masks = all[9];
+      masks = all[all.length - 1];
       if (shot) applyShot(shot);
       else {
         hud();
