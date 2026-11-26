@@ -5,85 +5,77 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="鹿鼎记">
-<meta name="theme-color" content="#1c1814">
-<meta name="description" content="鹿鼎记：水墨回合制。韦小宝从扬州丽春院到北京，直到擒鳌拜。">
+<meta name="theme-color" content="#0a0707">
+<meta name="description" content="鹿鼎记：扬州丽春院。横屏，照着烟雨江湖的地图和界面。">
 <title>鹿鼎记</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="css/game.css">
 </head>
 <body>
+<div id="turn"><div><b>请横屏</b><small>把手机横过来</small></div></div>
 <div id="app">
-  <canvas id="cv"></canvas>
-  <div id="vlabel"></div>
-  <header id="top" hidden>
-    <div class="loc-row">
-      <div class="loc-name" id="loc-name"></div>
-      <div class="silver" id="silver"></div>
-    </div>
-    <div class="meters">
-      <div class="meter">
-        <div class="cap"><span>气血</span><span id="hp-n"></span></div>
-        <div class="track"><i id="hp-b"></i></div>
-      </div>
-      <div class="meter mp">
-        <div class="cap"><span>内力</span><span id="mp-n"></span></div>
-        <div class="track"><i id="mp-b"></i></div>
-      </div>
-    </div>
-    <div class="quest" id="quest" hidden></div>
+  <canvas id="view" width="844" height="390"></canvas>
+  <canvas id="fx" width="844" height="390"></canvas>
+  <header id="top">
+    <div class="res"><i class="heart"></i><span id="sta">体力 92/100</span><button type="button" id="sta-plus" class="plus">+</button></div>
+    <div class="res"><i class="coin"></i><span id="wen">0两46文</span></div>
+    <div class="res"><i class="gold"></i><span id="gold">0两</span><button type="button" class="plus" id="gold-plus">+</button></div>
+    <button type="button" id="notice" class="notice">公告</button>
   </header>
-  <div id="spots"></div>
-  <div id="floaters"></div>
-  <div id="toast"></div>
-  <section id="dock">
-    <div id="dlg" class="paper" hidden>
-      <div id="dlg-port"><canvas id="face" width="192" height="192"></canvas></div>
-      <div id="dlg-body">
-        <div id="dlg-name"></div>
-        <p id="dlg-text"></p>
-        <div id="dlg-hint">轻点继续</div>
-      </div>
+  <aside id="quest"></aside>
+  <aside id="side">
+    <div class="grid2">
+      <button type="button" data-menu="act">活动</button>
+      <button type="button" data-menu="menu">菜单</button>
+      <button type="button" data-menu="shop">商城</button>
+      <button type="button" data-menu="comm">社区</button>
     </div>
-    <div id="choices" hidden></div>
-    <div id="battle" class="paper" hidden>
-      <div class="b-head">
-        <div class="b-who">
-          <b id="b-name"></b>
-          <small id="b-title"></small>
-          <div class="track b-track"><i id="b-hp"></i></div>
-        </div>
-        <canvas id="b-face" width="128" height="128"></canvas>
-      </div>
-      <p id="b-log"></p>
-      <div class="b-you" id="b-you"></div>
-      <div id="skills"></div>
+    <div class="locbox">
+      <div id="locname">扬州 (10,8)</div>
+      <div id="hours" class="hours"></div>
     </div>
-    <nav id="tabs" hidden>
-      <button type="button" class="tab" data-panel="char">人物</button>
-      <button type="button" class="tab" data-panel="bag">背包</button>
-      <button type="button" class="tab" data-panel="arts">武学</button>
-      <button type="button" class="tab" data-panel="quests">任务</button>
-      <button type="button" class="tab" data-panel="map">地图</button>
-    </nav>
-  </section>
+    <div id="near" class="near"></div>
+  </aside>
+  <nav id="dock"></nav>
+  <div id="dlg" hidden>
+    <div class="bust-frame"><img id="dlg-bust" alt=""></div>
+    <div class="dlg-main">
+      <div id="dlg-name" class="nameplate"></div>
+      <p id="dlg-text"></p>
+      <div id="dlg-hint">轻点继续</div>
+    </div>
+  </div>
+  <div id="choices" hidden></div>
   <div id="panel" hidden>
-    <div class="panel-card paper" id="panel-body"></div>
+    <div class="sheet">
+      <div class="roller"><span id="roller-title">属性</span><div class="tassel" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div></div>
+      <div id="paper" class="paper"></div>
+      <div id="party-col" class="party-col"></div>
+    </div>
+    <button type="button" id="panel-x" class="closex">关闭</button>
   </div>
-  <div id="title">
-    <p class="title-note">金庸《鹿鼎记》 · 扬州至擒鳌</p>
-    <div class="actions">
-      <button type="button" id="btn-new" class="title-btn">新的故事</button>
-      <button type="button" id="btn-cont" class="title-btn" hidden>继续前缘</button>
-      <button type="button" id="btn-sheet" class="title-btn ghost">人物图鉴</button>
+  <div id="battle" hidden>
+    <img id="battle-bg" alt="" src="assets/bg_alley.webp">
+    <div id="b-round">回合 1/99</div>
+    <div id="b-call"></div>
+    <div id="b-units"></div>
+    <div id="b-skills"></div>
+  </div>
+  <div id="end" hidden>
+    <div class="end-card">
+      <div class="end-title">未完待续</div>
+      <p id="end-text"></p>
+      <button type="button" id="end-back">再在坊里走走</button>
     </div>
   </div>
+  <div id="tip" hidden></div>
+  <div id="menu-pop" hidden></div>
+  <div class="bezel" aria-hidden="true"></div>
+  <i class="corn tl"></i><i class="corn tr"></i><i class="corn bl"></i><i class="corn br"></i>
 </div>
-<script src="js/art.js"></script>
-<script src="js/story.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

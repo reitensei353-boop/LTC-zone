@@ -1,1116 +1,1167 @@
-/* 鹿鼎记 — exploration, dialogue, turn-based combat. Offline, no build. */
+/* 鹿鼎记 · 扬州一段. Landscape, tap-to-move, 烟雨江湖-style chrome. */
 (function () {
   "use strict";
-
-  const D = window.LDJData;
-  const Art = window.LDJArt;
-  const $ = function (id) { return document.getElementById(id); };
-  const KEY = "ldj-weixiaobao-v1";
-  const CN = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
-  const RANKS = ["", "市井小儿", "小白龙", "惯会惹事", "进京客", "冒牌太监", "桂公公", "擒鳌之人", "鹿鼎未完"];
-
-  let state;
-  let dpr = 1;
-  let cssW = 1;
-  let cssH = 1;
-  let cache = null;
-  let cacheKey = "";
-  let checkpoint = null;
-  let particles = [];
-  let toastTimer = 0;
+  const TILE = 40;
+  const MAPW = 1280;
+  const MAPH = 720;
+  const COLS = 32;
+  const ROWS = 18;
+  const VIEW = { x: 8, y: 42, w: 708, h: 286 };
+  const SPRITE_H = 28;
+  const $ = (id) => document.getElementById(id);
   const params = new URLSearchParams(location.search);
+  const FAST = params.get("fast") === "1" || params.get("shot");
+  const KEY = "ldj-yyjh-v2";
 
-  function freshPlayer() {
+  const HOURS = ["巳", "午", "未", "申", "酉"];
+  const DOCK = [
+    ["role", "角色", personIcon],
+    ["bag", "包袱", bagIcon],
+    ["skill", "武功", swordIcon],
+    ["form", "布阵", flagIcon],
+    ["art", "技艺", potIcon],
+    ["note", "记事", bookIcon],
+    ["map", "地图", mapIcon],
+  ];
+
+  const ITEMS = {
+    dagger: { name: "匕首", slot: "weapon", base: "攻击 +8", extra: "无", special: "专挑软处。韦小宝惯用的短刃。", eq: true },
+    lime: { name: "石灰", slot: "", base: "无", extra: "无", special: "撒进眼里，英雄也睁不开。", eq: false },
+    pill: { name: "金创药", slot: "", base: "气血 +28", extra: "无", special: "苦，止血。", eq: false, heal: 28 },
+    cloth: { name: "蓝布短褂", slot: "cloth", base: "防御 +2", extra: "无", special: "扬州街上的旧衣。", eq: true },
+    dao: { name: "单刀", slot: "weapon", base: "攻击 +16", extra: "五虎断门", special: "茅十八的刀。", eq: false, who: "mao" },
+  };
+
+  const SK = {
+    wei: [
+      { id: "brawl", name: "市井扭打", qi: 0, mult: 1, line: "矮身一钻，照着腰眼便撞。" },
+      { id: "dagger", name: "匕首", qi: 30, mult: 1.6, line: "刀光一闪，专挑软处。" },
+      { id: "taunt", name: "油嘴", qi: 20, mult: 0.45, weak: true, line: "骂得又损又快，对手怒得走形。" },
+      { id: "lime", name: "撒石灰", qi: 25, mult: 0.55, blind: true, line: "白粉飞扬，直扑双眼。" },
+    ],
+    mao: [
+      { id: "dao", name: "断门刀", qi: 0, mult: 1.15, line: "五虎断门刀斜劈下来。" },
+      { id: "hack", name: "猛劈", qi: 30, mult: 1.75, line: "刀势又沉又快，劈在肩上。" },
+      { id: "sweep", name: "横扫", qi: 45, mult: 0.85, aoe: true, line: "一刀扫过，官差连着退。" },
+    ],
+    guan: [
+      { id: "cut", name: "挥刀", qi: 0, mult: 1, line: "官差单刀横劈。" },
+      { id: "stab", name: "突刺", qi: 30, mult: 1.45, line: "刀尖直取胸口。" },
+    ],
+  };
+
+  const img = {};
+  let masks = null;
+  let state;
+  let raf = 0;
+
+  function fresh() {
     return {
-      wen: 46, lv: 1, exp: 0, next: 22, yueli: 0,
-      hp: 52, hpMax: 52, mp: 12, mpMax: 12,
-      li: 8, shen: 14, gen: 7, ji: 16,
-      arts: { brawl: 1, taunt: 1 },
-      inv: { pill: 1 },
-      equip: null,
-      disguise: false,
-    };
-  }
-  function baseState() {
-    return {
-      p: freshPlayer(),
+      map: "yangzhou",
+      x: 10, y: 8,
+      path: [],
+      flip: false,
+      moving: false,
+      trail: [],
+      party: ["wei"],
+      focus: "wei",
       flags: {},
-      node: "",
-      loc: "mingyu",
-      mode: "title",
-      panel: "",
-      quest: null,
-      log: [],
-      known: {},
-      line: 0,
+      stats: { lv: 1, li: 9, shen: 14, gen: 8, ji: 16, points: 2, exp: 12, next: 40, yueli: 6 },
+      hp: { wei: 92, mao: 148 },
+      hpMax: { wei: 92, mao: 148 },
+      sta: 92, staMax: 100,
+      wen: 46, gold: 0,
+      own: { dagger: 1, lime: 1, pill: 2, cloth: 1 },
+      hour: 3,
+      night: false,
+      panel: null,
+      tip: null,
+      talk: null,
       battle: null,
-      figureOverride: null,
-      fast: params.get("fast") === "1",
-      pendingToast: "",
+      menu: false,
+      fast: !!FAST,
     };
   }
 
-  function silverText(wen) {
-    wen = Math.max(0, wen | 0);
-    if (wen >= 1000) {
-      const liang = Math.floor(wen / 1000);
-      const qian = Math.floor((wen % 1000) / 100);
-      return qian ? liang + "两" + qian + "钱" : liang + "两";
-    }
-    return wen + "文";
+  function walkAt(map, x, y) {
+    if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return false;
+    const row = masks[map][y];
+    return row && row[x] === "1";
   }
-  function toast(msg) {
-    const el = $("toast");
-    el.textContent = msg;
-    el.classList.add("on");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.classList.remove("on"); }, 1400);
-  }
-  function wait(ms) {
-    return new Promise(function (res) { setTimeout(res, state && state.fast ? 16 : ms); });
-  }
-  function shake() {
-    const app = $("app");
-    app.classList.remove("shake");
-    void app.offsetWidth;
-    app.classList.add("shake");
-  }
-  function noteQuest() {
-    if (!state.quest) return;
-    state.log = state.log || [];
-    const t = state.quest.title;
-    if (!state.log.some(function (q) { return q.title === t; })) state.log.push({ title: state.quest.title, detail: state.quest.detail });
-    else state.log.forEach(function (q) { if (q.title === t) q.detail = state.quest.detail; });
-  }
-  function faceOf(speaker) {
-    if (!speaker) return null;
-    if ((speaker === "wei" || speaker === "mind") && state.p.disguise) return "wei_eunuch";
-    const w = D.WHO[speaker];
-    return w ? w.face : null;
-  }
-  function nameOf(speaker) {
-    const w = D.WHO[speaker] || { name: "" };
-    if (speaker === "wei" && state.p.disguise) {
-      const loc = state.loc;
-      if (loc === "hairoom" || loc === "palace" || loc === "courtyard" || loc === "study" || loc === "ending") return "小桂子";
-    }
-    if (speaker === "mind") return "心里";
-    return w.name || "";
-  }
-  function playerAtk(rank) {
-    let a = 7 + state.p.li * 0.55 + (rank - 1) * 2;
-    if (state.p.equip === "dagger") a += 4;
-    if (state.p.equip === "golddagger") a += 8;
-    return a;
-  }
-  function playerDef() { return 2 + state.p.gen * 0.35; }
-  function roll(atk, def, mult) {
-    const base = atk * (mult || 1) - def * 0.45;
-    const v = 0.9 + Math.random() * 0.2;
-    return Math.max(1, Math.round(base * v));
-  }
-  function grantExp(n) {
-    const p = state.p;
-    p.exp += n;
-    p.yueli += Math.ceil(n / 2);
-    let ups = 0;
-    while (p.exp >= p.next && p.lv < 8) {
-      p.exp -= p.next;
-      p.lv += 1;
-      p.next = Math.round(p.next * 1.4 + 6);
-      p.hpMax += 10;
-      p.mpMax += 4;
-      p.ji += 1;
-      if (p.lv % 2 === 0) p.li += 1;
-      else p.shen += 1;
-      ups += 1;
-    }
-    p.hp = p.hpMax;
-    p.mp = p.mpMax;
-    if (ups) toast("修为升至" + (CN[p.lv] || p.lv) + " · " + (RANKS[p.lv] || ""));
-  }
-
-  function save() {
-    try {
-      let mode = state.mode;
-      if (mode === "battle" || mode === "shop" || mode === "panel" || mode === "sheet") mode = "explore";
-      if (mode === "choice") mode = "talk";
-      const snap = {
-        p: state.p, flags: state.flags, node: state.node, loc: state.loc,
-        mode: mode, quest: state.quest, log: state.log, known: state.known,
-      };
-      localStorage.setItem(KEY, JSON.stringify(snap));
-    } catch (e) { /* private mode */ }
-  }
-  function hasSave() {
-    try { return !!localStorage.getItem(KEY); } catch (e) { return false; }
-  }
-  function loadGame() {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (!raw) return false;
-      const s = JSON.parse(raw);
-      state = baseState();
-      state.p = Object.assign(freshPlayer(), s.p);
-      state.flags = s.flags || {};
-      state.node = s.node || "intro";
-      state.loc = s.loc || "mingyu";
-      state.quest = s.quest || null;
-      state.log = s.log || [];
-      state.known = s.known || {};
-      state.mode = s.mode || "explore";
-      if (state.mode === "talk" || state.mode === "choice") {
-        state.mode = "talk";
-        state.line = 0;
+  function nearestWalk(map, x, y) {
+    let best = null;
+    let bd = 99;
+    for (let yy = 0; yy < ROWS; yy++) {
+      for (let xx = 0; xx < COLS; xx++) {
+        if (!walkAt(map, xx, yy)) continue;
+        const d = Math.abs(xx - x) + Math.abs(yy - y);
+        if (d < bd) { bd = d; best = [xx, yy]; }
       }
-      if (!D.NODES[state.node]) state.mode = "title";
-      render();
-      return true;
-    } catch (e) {
-      return false;
     }
+    return best || [x, y];
   }
-
-  function goto(id) {
-    const n = D.NODES[id];
-    if (!n) {
-      console.error("missing node", id);
-      return;
-    }
-    state.figureOverride = null;
-    state.node = id;
-    state.battle = null;
-    if (n.loc) state.loc = n.loc;
-    if (n.onEnter) n.onEnter(state);
-    noteQuest();
-    state.line = 0;
-    if (state.pendingToast) {
-      toast(state.pendingToast);
-      state.pendingToast = "";
-    }
-    if (n.shop) {
-      state.mode = "shop";
-      save();
-      render();
-      return;
-    }
-    if (n.ending) {
-      state.mode = "end";
-      save();
-      render();
-      return;
-    }
-    if (n.explore) {
-      state.mode = "explore";
-      save();
-      render();
-      return;
-    }
-    if (n.lines && n.lines.length) {
-      state.mode = "talk";
-      save();
-      render();
-      return;
-    }
-    if (n.thenBattle) {
-      beginBattle(n.thenBattle);
-      return;
-    }
-    if (n.next) goto(n.next);
-    else {
-      state.mode = "explore";
-      render();
-    }
-  }
-
-  function advance() {
-    if (state.mode !== "talk") return;
-    const n = D.NODES[state.node];
-    if (!n || !n.lines) return;
-    if (state.line < n.lines.length - 1) {
-      state.line += 1;
-      render();
-      return;
-    }
-    if (n.choices && n.choices.length) {
-      state.mode = "choice";
-      render();
-      return;
-    }
-    if (n.thenBattle) {
-      beginBattle(n.thenBattle);
-      return;
-    }
-    if (n.next) goto(n.next);
-    else {
-      state.mode = "explore";
-      save();
-      render();
-    }
-  }
-  function choose(i) {
-    const n = D.NODES[state.node];
-    if (!n || !n.choices || !n.choices[i]) return;
-    const c = n.choices[i];
-    if (c.fx) c.fx(state);
-    if (c.battle) beginBattle(c.battle);
-    else goto(c.go);
-  }
-
-  function beginBattle(id) {
-    const b = D.BATTLES[id];
-    if (!b) return;
-    state.p.hp = state.p.hpMax;
-    state.p.mp = state.p.mpMax;
-    checkpoint = JSON.parse(JSON.stringify({ p: state.p, flags: state.flags }));
-    const rt = {
-      id: id, hp: b.hp, hpMax: b.hp, atk: b.atk, def: b.def,
-      turn: 1, busy: false, blind: 0, dodge: 0, guard: 0, stun: 0,
-      goal: 0, goalMet: false, used: {}, enraged: false,
-      survived: false, kangxi: false,
-      log: b.name + "挡在面前。",
-      poseP: "guard", poseE: "fight",
-      ally: b.ally ? { name: b.ally.name, face: b.ally.face, atk: b.ally.atk, line: b.ally.line } : null,
-    };
-    if (b.onStart) b.onStart(rt, state);
-    state.battle = rt;
-    state.mode = "battle";
-    render();
-  }
-  function skillById(id) { return D.SKILLS[id]; }
-  function visibleSkill(id) {
-    const sk = skillById(id);
-    if (!sk) return false;
-    if (sk.learn && !state.p.arts[id]) return false;
-    if (sk.needEquip && state.p.equip !== "dagger" && state.p.equip !== "golddagger") return false;
-    if (sk.item && !(state.p.inv[sk.item] > 0)) return false;
-    return true;
-  }
-  function enabledSkill(id) {
-    const sk = skillById(id);
-    const rt = state.battle;
-    if (!sk || !rt) return false;
-    if (!visibleSkill(id)) return false;
-    if (sk.mp && state.p.mp < sk.mp) return false;
-    if (sk.once && rt.used[id]) return false;
-    if (sk.uses && (rt.used[id] || 0) >= sk.uses) return false;
-    if (sk.needBlind && !(rt.blind > 0)) return false;
-    if (sk.needBind && !(rt.blind > 0 && rt.hp <= rt.hpMax * 0.45)) return false;
-    return true;
-  }
-  function pay(id, sk, rt) {
-    if (sk.mp) state.p.mp = Math.max(0, state.p.mp - sk.mp);
-    if (sk.consume && sk.item) {
-      state.p.inv[sk.item] = (state.p.inv[sk.item] || 1) - 1;
-      if (state.p.inv[sk.item] <= 0) delete state.p.inv[sk.item];
-    }
-    if (sk.once) rt.used[id] = 1;
-    if (sk.uses) rt.used[id] = (rt.used[id] || 0) + 1;
-    if (sk.flag) state.flags[sk.flag] = 1;
-    if (id === "lime") state.flags.limeUsed = 1;
-  }
-  function floatNum(n, xf) {
-    const el = document.createElement("div");
-    el.className = "floater";
-    el.textContent = (n > 0 ? "-" : "") + n;
-    el.style.left = (xf * 100) + "%";
-    el.style.top = "34%";
-    $("floaters").appendChild(el);
-    setTimeout(function () { el.remove(); }, 820);
-  }
-  function burst(kind, right) {
-    const x = cssW * (right ? 0.7 : 0.32);
-    const y = cssH * 0.34;
-    const n = kind === "blind" ? 18 : kind === "heavy" ? 14 : kind === "palm" ? 7 : 9;
-    for (let i = 0; i < n; i++) {
-      particles.push({
-        x: x + (Math.random() - 0.5) * 36,
-        y: y + (Math.random() - 0.5) * 26,
-        vx: (Math.random() - 0.5) * 2.4,
-        vy: -0.4 - Math.random() * 1.2,
-        r: 7 + Math.random() * (kind === "blind" ? 18 : 14),
-        life: 0.9 + Math.random() * 0.3,
-        rot: Math.random() * 6,
-        color: kind === "blind" ? "rgba(236,236,232,0.75)" : kind === "heavy" ? "rgba(90,30,28,0.55)" : "rgba(24,20,16,0.62)",
-        flat: kind === "blind" ? 0.45 : 0.62,
-        palm: kind === "palm",
-        ang: (i / n) * Math.PI * 2,
-      });
-    }
-  }
-  function resolvePlayer(id, sk, rt, b) {
-    if (sk.kind === "heal") {
-      state.p.hp = Math.min(state.p.hpMax, state.p.hp + (sk.heal || 20));
-      return sk.text;
-    }
-    if (sk.kind === "taunt") {
-      rt.atk = Math.max(5, rt.atk - 1);
-      return sk.text;
-    }
-    if (sk.kind === "dodge") {
-      rt.dodge = 2;
-      return sk.text;
-    }
-    if (sk.kind === "guard") {
-      rt.guard = Math.min(3, rt.guard + 1);
-      const d = roll(8 + state.p.li * 0.3, rt.def, 0.55);
-      rt.hp -= d;
-      floatNum(d, 0.7);
-      return sk.text;
-    }
-    if (sk.kind === "blind") {
-      rt.blind = Math.max(rt.blind, 3);
-      burst("blind", true);
-      return sk.text;
-    }
-    if (sk.kind === "finish") {
-      rt.hp = 0;
-      burst("heavy", true);
-      return sk.text;
-    }
-    if (sk.kind === "heavy") {
-      const d = sk.flat || 70;
-      rt.hp -= d;
-      rt.stun = 1;
-      floatNum(d, 0.7);
-      burst("heavy", true);
-      shake();
-      return sk.text;
-    }
-    const rank = state.p.arts[id] || 1;
-    const d = roll(playerAtk(rank), rt.def, sk.mult || 1);
-    rt.hp -= d;
-    floatNum(d, 0.7);
-    if (b.goal && b.goal.skill === id) rt.goal += 1;
-    if (sk.kind === "stun" && Math.random() < (sk.stun || 0.3)) rt.stun = 1;
-    if (id === "leaf") burst("palm", true);
-    else burst("ink", true);
-    let extra = "";
-    if (rt.stun > 0 && sk.kind === "stun") extra = "对方滞了一滞。";
-    if (b.goal && rt.goal > 0 && b.goal.skill === id) extra += "（第" + CN[rt.goal] + "手）";
-    return sk.text + extra;
-  }
-  function pickMove(b, rt) {
-    if (b.id === "aobai") {
-      if (rt.guard > 0 && rt.turn % 3 === 0) return { mult: 1.15, text: "鳌拜双臂一振，小太监被甩了开去。", clear: true };
-      if (rt.blind > 0) return { mult: 0.82, text: "鳌拜揉着眼，乱拳仍砸得风响。", acc: 0.45 };
-      if (rt.hp < rt.hpMax * 0.5) return { mult: 1.28, text: "鳌拜大叫：大伙儿一起死了罢！" };
-      return { mult: 1.08, text: "鳌拜一拳砸下。他曾在北京街上一拳打死疯牛。" };
-    }
-    const moves = b.moves && b.moves.length ? b.moves : [{ mult: 1, text: b.name + "攻了上来。" }];
-    return moves[(rt.turn - 1) % moves.length];
-  }
-  function act(id) {
-    const rt = state.battle;
-    const b = rt && D.BATTLES[rt.id];
-    if (!rt || rt.busy || !b) return;
-    if (!enabledSkill(id)) return;
-    const sk = skillById(id);
-    rt.busy = true;
-    pay(id, sk, rt);
-    rt.poseP = (sk.kind === "dodge" || sk.kind === "heal") ? "guard" : "reach";
-    rt.log = resolvePlayer(id, sk, rt, b);
-    render();
-    wait(460).then(function () {
-      if (!state.battle) return;
-      rt.poseP = "guard";
-      if (rt.hp <= 0) return winBattle();
-      if (b.goal && rt.goal >= b.goal.n) {
-        rt.goalMet = true;
-        return winBattle();
-      }
-      enemyPhase();
-    });
-  }
-  function enemyPhase() {
-    const rt = state.battle;
-    const b = D.BATTLES[rt.id];
-    let lead = "";
-    if (rt.ally && rt.hp > 0) {
-      const d = roll(rt.ally.atk, rt.def, 1);
-      rt.hp -= d;
-      lead = rt.ally.line;
-      floatNum(d, 0.7);
-    }
-    if (rt.hp <= 0) {
-      rt.log = lead || rt.log;
-      return winBattle();
-    }
-    if (rt.stun > 0) {
-      rt.stun -= 1;
-      rt.log = (lead ? lead + " " : "") + b.name + "这一招没能递出来。";
-      render();
-      return endRound();
-    }
-    const move = pickMove(b, rt);
-    let hit = true;
-    const acc = rt.blind > 0 ? (move.acc || 0.42) : 1;
-    if (Math.random() > acc) hit = false;
-    if (hit && rt.dodge > 0 && Math.random() < 0.55) hit = false;
-    if (hit) {
-      let dealt = roll(rt.atk, playerDef(), move.mult || 1);
-      dealt = Math.max(1, Math.round(dealt * (1 - Math.min(0.55, rt.guard * 0.2))));
-      if (move.clear) rt.guard = 0;
-      state.p.hp -= dealt;
-      floatNum(dealt, 0.28);
-      rt.poseE = "reach";
-      burst("ink", false);
-      if (dealt > 16) shake();
-    }
-    rt.log = (lead ? lead + " " : "") + (hit ? move.text : b.name + "一招走空。");
-    render();
-    wait(480).then(function () {
-      if (!state.battle) return;
-      rt.poseE = "fight";
-      if (state.p.hp <= 0) {
-        if (b.survive && !rt.survived) {
-          rt.survived = true;
-          state.p.hp = Math.max(10, Math.round(state.p.hpMax * 0.34));
-          rt.log = "康熙把你拖进书桌底下。鳌拜砸偏了。";
-          render();
-          return endRound();
+  function astar(map, x0, y0, x1, y1) {
+    if (!walkAt(map, x1, y1)) return null;
+    const key = (x, y) => x + "," + y;
+    const h = (x, y) => Math.abs(x - x1) + Math.abs(y - y1);
+    const open = [{ f: h(x0, y0), g: 0, x: x0, y: y0 }];
+    const best = new Map([[key(x0, y0), 0]]);
+    const prev = new Map();
+    while (open.length) {
+      open.sort((a, b) => a.f - b.f);
+      const n = open.shift();
+      if (n.x === x1 && n.y === y1) {
+        const path = [[n.x, n.y]];
+        let k = key(n.x, n.y);
+        while (prev.has(k)) {
+          k = prev.get(k);
+          const [px, py] = k.split(",").map(Number);
+          path.push([px, py]);
         }
-        return loseBattle();
+        path.reverse();
+        path.shift();
+        return path;
       }
-      if (b.id === "aobai" && !rt.kangxi && state.p.hp < state.p.hpMax * 0.42) {
-        rt.kangxi = true;
-        const d2 = 36;
-        rt.hp -= d2;
-        rt.log = "康熙绕到背后，一刀插入鳌拜背心。刀口偏了，人却怒得转身。";
-        floatNum(d2, 0.7);
-        burst("heavy", true);
-        render();
-        if (rt.hp <= 0) return winBattle();
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = n.x + dx;
+        const ny = n.y + dy;
+        if (!walkAt(map, nx, ny)) continue;
+        const ng = n.g + 1;
+        const kk = key(nx, ny);
+        if (best.has(kk) && best.get(kk) <= ng) continue;
+        best.set(kk, ng);
+        prev.set(kk, key(n.x, n.y));
+        open.push({ f: ng + h(nx, ny), g: ng, x: nx, y: ny });
       }
-      if (b.maxTurns && rt.turn >= b.maxTurns) return winBattle();
-      endRound();
-    });
-  }
-  function endRound() {
-    const rt = state.battle;
-    if (!rt) return;
-    if (rt.blind > 0) rt.blind -= 1;
-    if (rt.dodge > 0) rt.dodge -= 1;
-    rt.turn += 1;
-    rt.busy = false;
-    render();
-  }
-  function winBattle() {
-    const rt = state.battle;
-    if (!rt) return;
-    const b = D.BATTLES[rt.id];
-    state.flags["won_" + b.id] = 1;
-    state.flags.lastGoal = !!rt.goalMet || (!b.goal);
-    if (b.goal && rt.goal >= b.goal.n) state.flags.lastGoal = true;
-    state.battle = null;
-    grantExp(b.exp || 12);
-    goto(b.win);
-  }
-  function loseBattle() {
-    const rt = state.battle;
-    if (!rt) return;
-    const b = D.BATTLES[rt.id];
-    if (checkpoint) {
-      state.p = JSON.parse(JSON.stringify(checkpoint.p));
-      state.flags = JSON.parse(JSON.stringify(checkpoint.flags));
     }
-    state.p.hp = state.p.hpMax;
-    state.battle = null;
-    toast(b.nonlethal ? "这一场输了" : "幸而未死");
-    goto(b.lose);
+    return null;
   }
 
-  function useItem(id) {
-    const it = D.ITEMS[id];
-    if (!it || !(state.p.inv[id] > 0)) return;
-    if (it.heal) {
-      state.p.hp = Math.min(state.p.hpMax, state.p.hp + it.heal);
-      state.p.inv[id] -= 1;
-      if (state.p.inv[id] <= 0) delete state.p.inv[id];
-      toast("气血回来些");
-    } else if (it.equip) {
-      state.p.equip = id;
-      toast("换上了" + it.name);
-    } else toast(it.desc);
-    save();
-    render();
-  }
-  function train(id) {
-    const rank = state.p.arts[id] || 0;
-    if (!rank || rank >= 3) return;
-    const cost = 12 * rank;
-    if (state.p.yueli < cost) return;
-    state.p.yueli -= cost;
-    state.p.arts[id] = rank + 1;
-    toast(D.SKILLS[id].name + " 第" + CN[rank + 1] + "重");
-    save();
-    render();
-  }
-  function buy(id, price, once) {
-    if (once && state.p.inv[id]) return;
-    if (state.p.wen < price) { toast("银子不够"); return; }
-    state.p.wen -= price;
-    state.p.inv[id] = (state.p.inv[id] || 0) + 1;
-    toast("买下" + D.ITEMS[id].name);
-    save();
-    render();
-  }
-  function travel(locId) {
-    if (!state.flags["open_" + locId]) return;
-    state.loc = locId;
-    state.mode = "explore";
-    state.node = "wander";
-    save();
-    render();
-  }
-  function openPanel(kind) {
-    state.prev = state.mode;
-    state.panel = kind;
-    state.mode = kind === "sheet" ? "sheet" : "panel";
-    render();
-  }
-  function closePanel() {
-    state.mode = state.prev && state.prev !== "panel" && state.prev !== "sheet" ? state.prev : (state.node ? "explore" : "title");
-    if (state.mode === "talk" || state.mode === "choice" || state.mode === "battle" || state.mode === "shop") {
-      /* keep */
+  function npcs() {
+    if (state.map === "yangzhou") {
+      return [
+        { id: "tea", name: "茶博士", x: 11, y: 7, who: "tea" },
+        { id: "gate", name: "丽春院", x: 8, y: 8, who: "gate", bang: !state.flags.lichun },
+      ];
     }
-    render();
+    const list = [];
+    if (!state.flags.won) {
+      list.push({ id: "mao", name: "茅十八", x: 12, y: 12, who: "mao", bang: !state.flags.met });
+      list.push({ id: "guan", name: "官差", x: 22, y: 13, who: "guan", bang: !state.flags.met });
+      list.push({ id: "guan2", name: "官差", x: 26, y: 16, who: "guan", bang: false });
+    } else if (state.party.includes("mao")) {
+      list.push({ id: "mao", name: "茅十八", x: state.x, y: state.y, who: "mao", hidden: true });
+    }
+    return list;
   }
 
-  function figures() {
-    if (state.figureOverride) return state.figureOverride;
-    const n = D.NODES[state.node];
-    if (n && n.figures && state.mode !== "explore") return n.figures;
-    const loc = D.LOCS[state.loc];
-    return (loc && loc.figures) || [];
+  function money(wen) {
+    const liang = Math.floor(wen / 1000);
+    const rest = wen % 1000;
+    return liang + "两" + rest + "文";
   }
-  function sceneSpec() {
-    if (state.mode === "title" || (state.mode === "sheet" && !state.node)) return { id: "title", night: true };
-    if (state.battle) {
-      const b = D.BATTLES[state.battle.id];
-      const loc = D.LOCS[state.loc] || {};
-      return { id: b.scene || loc.scene || "yangzhou", night: !!loc.night };
+  function questBlock() {
+    const q = $("quest");
+    if (!state.flags.lichun) {
+      q.innerHTML = "<b>主线</b><p>鸣玉坊里有人喊打</p><em>前往丽春院 0/1</em>";
+    } else if (!state.flags.won) {
+      q.innerHTML = "<b>主线</b><p>官差围住了茅十八</p><em>助他脱困 0/1</em>";
+    } else {
+      q.innerHTML = "<b>主线</b><p>扬州这一段先了结</p><em>未完待续 1/1</em>";
     }
-    const loc = D.LOCS[state.loc] || D.LOCS.mingyu;
-    return { id: loc.scene, night: !!loc.night };
   }
-
-  function resize() {
-    const r = $("app").getBoundingClientRect();
-    dpr = Math.min(2, window.devicePixelRatio || 1);
-    cssW = Math.max(1, r.width);
-    cssH = Math.max(1, r.height);
-    const cv = $("cv");
-    cv.width = Math.round(cssW * dpr);
-    cv.height = Math.round(cssH * dpr);
-    cacheKey = "";
-  }
-  function frame(t) {
-    requestAnimationFrame(frame);
-    const ctx = $("cv").getContext("2d");
-    const spec = sceneSpec();
-    const key = spec.id + "|" + (spec.night ? 1 : 0) + "|" + Math.round(cssW) + "|" + Math.round(cssH);
-    if (key !== cacheKey) {
-      cache = document.createElement("canvas");
-      cache.width = $("cv").width;
-      cache.height = $("cv").height;
-      const c = cache.getContext("2d");
-      c.setTransform(dpr, 0, 0, dpr, 0, 0);
-      Art.paint(c, cssW, cssH, spec);
-      cacheKey = key;
-    }
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, cssW, cssH);
-    ctx.drawImage(cache, 0, 0, cssW, cssH);
-    if (!state.fast) Art.drift(ctx, cssW, cssH, t || 0);
-    const bob = state.fast ? 0 : Math.sin((t || 0) * 0.002) * 1.2;
-    if (state.mode === "battle" && state.battle) {
-      const b = D.BATTLES[state.battle.id];
-      const rt = state.battle;
-      const fh = cssH * (b.id === "aobai" ? 0.4 : 0.34);
-      Art.figure(ctx, state.p.disguise ? "wei_eunuch" : "wei", cssW * 0.3, cssH * 0.56 + bob, cssH * 0.32, rt.poseP);
-      Art.figure(ctx, b.face, cssW * 0.72, cssH * 0.57, fh, rt.poseE);
-      if (rt.ally) Art.figure(ctx, rt.ally.face, cssW * 0.14, cssH * 0.58, cssH * 0.26, "guard");
-    } else if (state.mode !== "title") {
-      figures().forEach(function (f) {
-        let id = f.id;
-        if (id === "wei" && state.p.disguise) id = "wei_eunuch";
-        Art.figure(ctx, id, cssW * f.x, cssH * f.y + bob, cssH * (f.h || 0.3), f.pose || "stand");
-      });
-    }
-    particles.forEach(function (p) {
-      p.x += p.vx;
-      p.y += p.vy;
-      p.life -= 0.02;
-      if (p.palm) Art.palm(ctx, p.x, p.y, p.ang, Math.max(0, p.life) * 0.45);
-      else Art.blob(ctx, p);
-    });
-    particles = particles.filter(function (p) { return p.life > 0; });
-  }
-
-  function setBar(id, cur, max) {
-    const el = $(id);
-    el.style.width = Math.max(0, Math.min(100, (cur / max) * 100)) + "%";
-  }
-  function paintFace(canvas, id, size) {
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!id) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      return;
-    }
-    Art.portrait(ctx, id, size || canvas.width);
-  }
-  function spotsNow() {
-    const loc = D.LOCS[state.loc];
-    if (!loc) return [];
-    return (loc.spots || []).filter(function (s) {
-      if (s.need && !state.flags[s.need]) return false;
-      if (s.unless && state.flags[s.unless]) return false;
-      return true;
-    });
-  }
-  function renderSpots() {
-    const box = $("spots");
-    box.innerHTML = "";
-    if (state.mode !== "explore") return;
-    const goal = state.quest && state.quest.spot;
-    spotsNow().forEach(function (s) {
+  function hud() {
+    $("sta").textContent = "体力 " + state.sta + "/" + state.staMax;
+    $("wen").textContent = money(state.wen);
+    $("gold").textContent = state.gold + "两";
+    const place = state.map === "yangzhou" ? "扬州" : "丽春院";
+    $("locname").textContent = place + " (" + state.x + "," + state.y + ")";
+    $("hours").innerHTML = "";
+    HOURS.forEach((h, i) => {
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "spot" + (s.id === goal ? " main" : "");
-      b.style.left = (s.x * 100) + "%";
-      b.style.top = (s.y * 100) + "%";
-      b.innerHTML = "<i></i><span></span>";
-      b.querySelector("span").textContent = s.label;
-      b.addEventListener("click", function () { goto(s.go); });
+      b.textContent = h;
+      if (i === state.hour) b.className = "on";
+      b.addEventListener("click", () => {
+        state.hour = i;
+        state.night = i >= 4;
+        hud();
+      });
+      $("hours").appendChild(b);
+    });
+    const box = $("near");
+    box.innerHTML = "";
+    npcs().filter((n) => !n.hidden).forEach((n) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      const near = Math.abs(n.x - state.x) + Math.abs(n.y - state.y) <= 3;
+      b.innerHTML = "<b></b><small></small>";
+      b.querySelector("b").textContent = n.name;
+      b.querySelector("small").textContent = near ? "可交谈" : "还远";
+      b.addEventListener("click", () => goInteract(n));
       box.appendChild(b);
     });
+    questBlock();
+    const mapOpen = state.panel || state.battle || state.talk;
+    $("top").hidden = !!state.battle;
+    $("side").hidden = !!state.battle;
+    $("dock").hidden = !!state.battle || !!state.panel;
+    $("quest").hidden = !!state.battle || !!state.panel;
+  }
+
+  function goInteract(n) {
+    const dist = Math.abs(n.x - state.x) + Math.abs(n.y - state.y);
+    if (dist <= 1) interact(n);
+    else {
+      const path = astar(state.map, state.x, state.y, n.x, n.y);
+      if (path && path.length) {
+        state.path = path;
+        state.pending = n.id;
+      }
+    }
+  }
+  function interact(n) {
+    if (state.talk || state.battle || state.panel) return;
+    if (n.id === "tea") {
+      openTalk([
+        { who: "tea", name: "茶博士", text: "榜文贴满了扬州。捉拿茅十八，杀了赏银二千两，通风报信也有一千两。" },
+        { who: "wei", name: "韦小宝", text: "二千两我拿不动。一千两的赏，英雄好汉可不干通风报信。" },
+      ], [
+        { t: "再听一嘴坊里的事", go: "moretea" },
+        { t: "去丽春院看看热闹", go: "togate" },
+      ]);
+      return;
+    }
+    if (n.id === "gate") {
+      enterLichun();
+      return;
+    }
+    if (n.who === "mao" || n.who === "guan") {
+      if (state.flags.won) {
+        openTalk([{ who: "mao", name: "茅十八", text: "往北的路还长。今日这一架，先记在这儿。" }]);
+        return;
+      }
+      openMao();
+    }
+  }
+  function enterLichun() {
+    fade(() => {
+      state.map = "lichun";
+      state.flags.lichun = 1;
+      const p = nearestWalk("lichun", 16, 13);
+      state.x = p[0]; state.y = p[1];
+      state.path = [];
+      state.pending = null;
+      hud();
+    });
+  }
+  function openMao() {
+    openTalk([
+      { who: "guan", name: "官差", text: "茅十八！奉命捉拿你。越狱杀官的账，跟我们走。跟旁人并不相干。" },
+      { who: "mao", name: "茅十八", text: "孩子，一边去。这些鹰爪孙冲着我来。" },
+    ], [
+      { t: "有难同当，我跟你打", go: "loyal" },
+      { t: "赏银二千两，我心动了", go: "greed" },
+      { t: "官差太凶，先溜吧", go: "flee" },
+    ]);
+  }
+
+  function openTalk(lines, choices, after) {
+    state.talk = { lines, i: 0, choices: choices || null, after: after || null, showChoice: false };
+    state.panel = null;
+    renderTalk();
+    hud();
   }
   function renderTalk() {
-    const n = D.NODES[state.node];
-    const line = n && n.lines && n.lines[state.line];
-    const show = state.mode === "talk" || state.mode === "choice";
-    $("dlg").hidden = !show;
-    $("choices").hidden = state.mode !== "choice";
-    if (!show || !line) return;
-    const face = faceOf(line.s);
-    $("dlg-port").hidden = !face;
-    if (face) paintFace($("face"), face, 192);
-    $("dlg-name").textContent = nameOf(line.s);
-    $("dlg-text").textContent = line.t;
-    $("dlg-text").classList.toggle("aside", !!(D.WHO[line.s] && D.WHO[line.s].aside));
-    $("dlg-hint").hidden = state.mode !== "talk";
-    if (state.mode === "choice") {
-      const box = $("choices");
-      box.innerHTML = "";
-      n.choices.forEach(function (c, i) {
+    const t = state.talk;
+    if (!t) { $("dlg").hidden = true; $("choices").hidden = true; return; }
+    $("dlg").hidden = false;
+    const line = t.lines[t.i];
+    $("dlg-name").textContent = line.name;
+    $("dlg-text").textContent = line.text;
+    const bust = $("dlg-bust");
+    const src = line.who === "mao" ? "assets/bust_mao.webp" : line.who === "guan" ? "assets/bust_guan.webp" : line.who === "tea" ? "" : "assets/bust_wei.webp";
+    if (src) { bust.src = src; bust.hidden = false; }
+    else { bust.removeAttribute("src"); bust.hidden = true; }
+    const last = t.i >= t.lines.length - 1;
+    $("dlg-hint").hidden = last && t.choices;
+    $("choices").hidden = !(last && t.choices);
+    $("choices").innerHTML = "";
+    if (last && t.choices) {
+      t.choices.forEach((c, idx) => {
         const b = document.createElement("button");
         b.type = "button";
         b.className = "choice";
         b.textContent = c.t;
-        b.addEventListener("click", function () { choose(i); });
-        box.appendChild(b);
+        b.addEventListener("click", () => pickChoice(c));
+        $("choices").appendChild(b);
       });
     }
   }
-  function renderBattle() {
-    const on = state.mode === "battle" && state.battle;
-    $("battle").hidden = !on;
-    if (!on) return;
-    const rt = state.battle;
-    const b = D.BATTLES[rt.id];
-    $("b-name").textContent = b.name;
-    $("b-title").textContent = b.title + (rt.blind > 0 ? "  · 目不能视" : "");
-    setBar("b-hp", rt.hp, rt.hpMax);
-    paintFace($("b-face"), b.face, 128);
-    $("b-log").textContent = rt.log;
-    $("b-you").textContent = "气血 " + state.p.hp + "/" + state.p.hpMax + "    内力 " + state.p.mp + "/" + state.p.mpMax + (rt.guard ? "    被抱住" : "");
-    const box = $("skills");
-    box.innerHTML = "";
-    (b.palette || []).forEach(function (id) {
-      if (!visibleSkill(id)) return;
-      const sk = skillById(id);
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "skill" + (sk.needBlind || sk.needBind ? " key" : "");
-      btn.disabled = !enabledSkill(id) || rt.busy;
-      const sub = sk.mp ? "内力 " + sk.mp : (sk.needBlind && !(rt.blind > 0) ? "先迷其目" : (sk.needBind ? "目盲且力竭" : (sk.item ? "消耗" : "")));
-      btn.innerHTML = "<span></span>" + (sub ? "<small></small>" : "");
-      btn.querySelector("span").textContent = sk.name;
-      if (sub) btn.querySelector("small").textContent = sub;
-      btn.addEventListener("click", function () { act(id); });
-      box.appendChild(btn);
-    });
-  }
-  function renderTop() {
-    const hide = state.mode === "title" || state.mode === "sheet";
-    $("top").hidden = hide;
-    $("vlabel").hidden = hide || state.mode === "panel" || state.mode === "end";
-    if (hide) return;
-    const loc = D.LOCS[state.loc];
-    $("loc-name").textContent = loc ? loc.name : "";
-    $("vlabel").textContent = loc ? loc.v : "";
-    $("silver").textContent = silverText(state.p.wen);
-    $("hp-n").textContent = state.p.hp + "/" + state.p.hpMax;
-    $("mp-n").textContent = state.p.mp + "/" + state.p.mpMax;
-    setBar("hp-b", state.p.hp, state.p.hpMax);
-    setBar("mp-b", state.p.mp, state.p.mpMax);
-    const q = $("quest");
-    if (state.quest) {
-      q.hidden = false;
-      q.innerHTML = "";
-      const b = document.createElement("b");
-      b.textContent = state.quest.title;
-      q.appendChild(b);
-      q.appendChild(document.createTextNode(state.quest.detail));
-    } else q.hidden = true;
-  }
-  function panelCard(html) {
-    $("panel").hidden = false;
-    $("panel-body").innerHTML = html;
-  }
-  function renderChar() {
-    const p = state.p;
-    panelCard(
-      '<h2>人物</h2><div class="seal-line">小宝</div>' +
-      '<div class="char-top"><canvas class="char-face" id="char-face" width="220" height="220"></canvas>' +
-      '<div><div id="char-rank"></div><div id="char-lv"></div><p id="char-eq"></p></div></div>' +
-      '<table class="stats"><tbody id="char-stats"></tbody></table>' +
-      '<button type="button" class="back" id="save-btn">记下这一笔</button>' +
-      '<button type="button" class="back" id="panel-back">回到江湖</button>'
-    );
-    const face = p.disguise ? "wei_eunuch" : "wei";
-    paintFace($("char-face"), face, 220);
-    $("char-rank").textContent = RANKS[p.lv] || "";
-    $("char-lv").textContent = "修为" + (CN[p.lv] || p.lv) + "  ·  阅历 " + p.yueli;
-    const eq = p.equip ? D.ITEMS[p.equip] : null;
-    $("char-eq").textContent = eq ? "兵刃  " + eq.name : "兵刃  空着手";
-    const rows = [
-      ["气血", p.hp + " / " + p.hpMax],
-      ["内力", p.mp + " / " + p.mpMax],
-      ["臂力", String(p.li)],
-      ["身法", String(p.shen)],
-      ["根骨", String(p.gen)],
-      ["机灵", String(p.ji)],
-      ["银两", silverText(p.wen)],
-      ["名号", p.disguise ? "宫中称小桂子" : "扬州韦小宝"],
-    ];
-    const tb = $("char-stats");
-    rows.forEach(function (r) {
-      const tr = document.createElement("tr");
-      const th = document.createElement("th");
-      th.textContent = r[0];
-      const td = document.createElement("td");
-      td.textContent = r[1];
-      tr.appendChild(th);
-      tr.appendChild(td);
-      tb.appendChild(tr);
-    });
-    $("save-btn").addEventListener("click", function () { save(); toast("已记下"); });
-    $("panel-back").addEventListener("click", closePanel);
-  }
-  function renderBag() {
-    panelCard('<h2>背包</h2><div class="seal-line">行囊</div><div class="grid-items" id="bag"></div><button type="button" class="back" id="panel-back">回到江湖</button>');
-    const box = $("bag");
-    const ids = Object.keys(state.p.inv);
-    if (!ids.length) {
-      const p = document.createElement("p");
-      p.textContent = "口袋比脸还干净。";
-      box.appendChild(p);
+  function advanceTalk() {
+    const t = state.talk;
+    if (!t) return;
+    if (t.i < t.lines.length - 1) {
+      t.i++;
+      renderTalk();
+      return;
     }
-    ids.forEach(function (id) {
-      const it = D.ITEMS[id];
-      if (!it || !(state.p.inv[id] > 0)) return;
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "item";
-      const name = document.createElement("b");
-      name.textContent = it.name + "  ×" + state.p.inv[id];
-      const desc = document.createElement("span");
-      desc.textContent = (state.p.equip === id ? "已装备。 " : "") + it.desc;
-      b.appendChild(name);
-      b.appendChild(desc);
-      b.addEventListener("click", function () { useItem(id); });
-      box.appendChild(b);
-    });
-    $("panel-back").addEventListener("click", closePanel);
-  }
-  function renderArts() {
-    panelCard('<h2>武学</h2><div class="seal-line">手上的功夫</div><div id="arts"></div><button type="button" class="back" id="panel-back">回到江湖</button>');
-    const box = $("arts");
-    Object.keys(state.p.arts).forEach(function (id) {
-      const sk = D.SKILLS[id];
-      if (!sk) return;
-      const rank = state.p.arts[id];
-      const cost = 12 * rank;
-      const row = document.createElement("div");
-      row.className = "skill-row";
-      const left = document.createElement("div");
-      const b = document.createElement("b");
-      b.textContent = sk.name + "  · 第" + (CN[rank] || rank) + "重";
-      const p = document.createElement("p");
-      p.textContent = sk.text;
-      left.appendChild(b);
-      left.appendChild(p);
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "mini";
-      btn.textContent = rank >= 3 ? "已足" : "温习 " + cost;
-      btn.disabled = rank >= 3 || state.p.yueli < cost;
-      btn.addEventListener("click", function () { train(id); });
-      row.appendChild(left);
-      row.appendChild(btn);
-      box.appendChild(row);
-    });
-    $("panel-back").addEventListener("click", closePanel);
-  }
-  function renderQuests() {
-    panelCard('<h2>任务</h2><div class="seal-line">要做的事</div><div id="qs"></div><button type="button" class="back" id="panel-back">回到江湖</button>');
-    const box = $("qs");
-    const list = (state.log || []).slice().reverse();
-    if (!list.length) {
-      const p = document.createElement("p");
-      p.textContent = "还没有人支使你。";
-      box.appendChild(p);
-    }
-    list.forEach(function (q, i) {
-      const d = document.createElement("div");
-      d.className = "quest-block";
-      const b = document.createElement("b");
-      b.textContent = (i === 0 ? "当前  " : "经过  ") + q.title;
-      const p = document.createElement("p");
-      p.textContent = q.detail;
-      d.appendChild(b);
-      d.appendChild(p);
-      box.appendChild(d);
-    });
-    $("panel-back").addEventListener("click", closePanel);
-  }
-  function renderMap() {
-    panelCard('<h2>地图</h2><div class="seal-line">山河</div><canvas id="mapcv" width="680" height="360"></canvas><div class="map-list" id="map-list"></div><button type="button" class="back" id="panel-back">回到江湖</button>');
-    const cv = $("mapcv");
-    const ctx = cv.getContext("2d");
-    const cur = (D.LOCS[state.loc] && D.LOCS[state.loc].map) || "yangzhou";
-    Art.map(ctx, cv.width, cv.height, state.known, cur);
-    const box = $("map-list");
-    Object.keys(D.LOCS).forEach(function (id) {
-      if (id === "tavern" || id === "ending" || id === "inn") return;
-      const loc = D.LOCS[id];
-      const b = document.createElement("button");
-      b.type = "button";
-      const open = !!state.flags["open_" + id];
-      b.textContent = loc.name + (state.loc === id ? "  · 人在此处" : open ? "  · 可去" : "  · 未通");
-      b.disabled = !open || state.loc === id;
-      if (state.loc === id) b.className = "on";
-      b.addEventListener("click", function () { travel(id); closePanel(); });
-      box.appendChild(b);
-    });
-    $("panel-back").addEventListener("click", closePanel);
-  }
-  function renderShop() {
-    const n = D.NODES[state.node];
-    panelCard('<h2>镇口</h2><div class="seal-line">杂货</div><p id="shop-silver"></p><div class="grid-items" id="shop"></div><button type="button" class="back" id="shop-leave">离开</button>');
-    $("shop-silver").textContent = "身上 " + silverText(state.p.wen);
-    const box = $("shop");
-    (n.shop || []).forEach(function (row) {
-      const it = D.ITEMS[row.id];
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "item";
-      const name = document.createElement("b");
-      const owned = row.once && state.p.inv[row.id];
-      name.textContent = it.name + "  " + silverText(row.price);
-      const desc = document.createElement("span");
-      desc.textContent = owned ? "已经有了。" : it.desc;
-      b.disabled = !!owned;
-      b.appendChild(name);
-      b.appendChild(desc);
-      b.addEventListener("click", function () { buy(row.id, row.price, row.once); });
-      box.appendChild(b);
-    });
-    $("shop-leave").addEventListener("click", function () { goto(n.leave || "free_desheng"); });
-  }
-  function renderSheet() {
-    panelCard('<h2>人物</h2><div class="seal-line">图鉴</div><div class="sheet" id="sheet"></div><button type="button" class="back" id="panel-back">返回</button>');
-    const box = $("sheet");
-    Art.ids.forEach(function (id) {
-      const p = Art.PEOPLE[id];
-      const fig = document.createElement("figure");
-      const cv = document.createElement("canvas");
-      cv.width = 200;
-      cv.height = 200;
-      const cap = document.createElement("figcaption");
-      cap.textContent = p.sheet || p.name;
-      fig.appendChild(cv);
-      fig.appendChild(cap);
-      box.appendChild(fig);
-      paintFace(cv, id, 200);
-    });
-    $("panel-back").addEventListener("click", function () {
-      if (!state.node) {
-        state.mode = "title";
-        render();
-      } else closePanel();
-    });
-  }
-  function renderEnd() {
-    panelCard(
-      '<div class="end-card"><h2>未完待续</h2><div class="seal-line">鹿鼎</div>' +
-      '<p>康熙八年，鳌拜被擒。京城里都在说，动手的是一位十来岁的小公公。</p>' +
-      '<p>韦小宝站在人群外面，靴筒里的匕首还温着。海大富仍在等那部四十二章经。天地会的陈近南，他还没见过面。为人不识陈近南，就称英雄也枉然——这句话，他记住了。</p>' +
-      '<p>小玄子说他们是朋友。皇帝的朋友能做多久，扬州的小孩还不知道。</p>' +
-      '<p style="text-align:center;letter-spacing:0.3em">—— 扬州的事，到这里先停下 ——</p></div>' +
-      '<button type="button" class="back" id="end-title">回到题头</button>'
-    );
-    $("end-title").addEventListener("click", function () {
-      state.mode = "title";
-      render();
-    });
-  }
-
-  function render() {
-    const mode = state.mode;
-    $("title").hidden = mode !== "title";
-    $("btn-cont").hidden = !hasSave();
-    $("tabs").hidden = mode !== "explore";
-    $("dock").hidden = mode === "title" || mode === "panel" || mode === "sheet" || mode === "end" || mode === "shop";
-    const showPanel = mode === "panel" || mode === "sheet" || mode === "end" || mode === "shop";
-    $("panel").hidden = !showPanel;
-    renderTop();
-    renderSpots();
+    if (t.choices) return;
+    const after = t.after;
+    state.talk = null;
     renderTalk();
-    renderBattle();
-    if (mode === "panel") {
-      if (state.panel === "char") renderChar();
-      else if (state.panel === "bag") renderBag();
-      else if (state.panel === "arts") renderArts();
-      else if (state.panel === "quests") renderQuests();
-      else if (state.panel === "map") renderMap();
-      else renderChar();
-    } else if (mode === "sheet") renderSheet();
-    else if (mode === "end") renderEnd();
-    else if (mode === "shop") renderShop();
+    hud();
+    if (after) after();
+  }
+  function pickChoice(c) {
+    state.talk = null;
+    renderTalk();
+    if (c.go === "moretea") {
+      openTalk([{ who: "tea", name: "茶博士", text: "还有人说，天地会的朋友个个是英雄好汉。为人不识陈近南，就称英雄也枉然。" }]);
+      return;
+    }
+    if (c.go === "togate") {
+      const n = npcs().find((x) => x.id === "gate");
+      if (n) goInteract(n);
+      hud();
+      return;
+    }
+    if (c.go === "loyal") {
+      openTalk([
+        { who: "wei", name: "韦小宝", text: "有福同享，有难同当。我跟你一块儿。" },
+        { who: "mao", name: "茅十八", text: "好。我姓茅，茅草之茅，不是毛虫之虫，排行第十八。" },
+      ], null, joinAndFight);
+      return;
+    }
+    if (c.go === "greed") {
+      openTalk([
+        { who: "wei", name: "韦小宝", text: "白花花的银子，谁不爱？可出卖朋友，还讲什么江湖义气？" },
+        { who: "mao", name: "茅十八", text: "这话中听。小娃娃，一起打。" },
+      ], null, joinAndFight);
+      return;
+    }
+    if (c.go === "flee") {
+      openTalk([
+        { who: "mao", name: "茅十八", text: "你既开口了，就别做缩头乌龟。" },
+        { who: "wei", name: "韦小宝", text: "辣块妈妈。相干。有难同当。" },
+      ], null, joinAndFight);
+    }
+  }
+  function joinAndFight() {
+    state.flags.met = 1;
+    if (!state.party.includes("mao")) state.party.push("mao");
+    state.stats.exp += 8;
+    startBattle();
   }
 
-  function newGame() {
-    state = baseState();
-    state.fast = params.get("fast") === "1";
-    goto("intro");
+  function fade(fn) {
+    document.body.classList.add("fading");
+    setTimeout(() => { fn(); document.body.classList.remove("fading"); }, FAST ? 20 : 240);
   }
-  function latePlayer() {
-    const p = state.p;
-    p.lv = 6;
-    p.hpMax = 108; p.hp = 96;
-    p.mpMax = 36; p.mp = 28;
-    p.li = 12; p.shen = 18; p.gen = 9; p.ji = 22;
-    p.wen = 6400; p.yueli = 36; p.exp = 12; p.next = 80;
-    p.disguise = true;
-    p.arts = { brawl: 2, taunt: 1, qin: 2, leaf: 2, empty: 1 };
-    p.inv = { golddagger: 1, dagger: 1, ash: 1, pill: 2, drug: 1, rope: 1, note: 1, sycee: 1, lime: 1 };
-    p.equip = "golddagger";
-    state.quest = { title: "擒鳌拜", detail: "茶盏落地，便一起上。", spot: "censer" };
-    state.log = [
-      { title: "鸣玉坊", detail: "已离开扬州。" },
-      { title: "冒充小桂子", detail: "海大富看不见了。" },
-      state.quest,
+
+  function clickMap(ev) {
+    if (state.talk || state.battle || state.panel || state.menu) return;
+    const r = $("view").getBoundingClientRect();
+    const scale = r.width / 844;
+    const px = (ev.clientX - r.left) / scale;
+    const py = (ev.clientY - r.top) / scale;
+    if (px < VIEW.x || py < VIEW.y || px > VIEW.x + VIEW.w || py > VIEW.y + VIEW.h) return;
+    const [cx, cy] = cam();
+    const mx = px - VIEW.x + cx;
+    const my = py - VIEW.y + cy;
+    let tx = Math.floor(mx / TILE);
+    let ty = Math.floor(my / TILE);
+    if (!walkAt(state.map, tx, ty)) {
+      const n = nearestWalk(state.map, tx, ty);
+      if (Math.abs(n[0] - tx) + Math.abs(n[1] - ty) > 2) return;
+      tx = n[0]; ty = n[1];
+    }
+    const hit = npcs().find((n) => !n.hidden && n.x === tx && n.y === ty);
+    const path = astar(state.map, state.x, state.y, tx, ty);
+    if (!path) return;
+    state.path = path;
+    state.pending = hit ? hit.id : null;
+    if (state.sta > 10 && path.length > 6) state.sta -= 1;
+  }
+
+  function cam() {
+    const px = (state.x + 0.5) * TILE;
+    const py = (state.y + 0.35) * TILE;
+    let cx = px - VIEW.w / 2;
+    let cy = py - VIEW.h / 2;
+    cx = Math.max(0, Math.min(MAPW - VIEW.w, cx));
+    cy = Math.max(0, Math.min(MAPH - VIEW.h, cy));
+    return [cx, cy];
+  }
+
+  function stepMove() {
+    if (!state.path.length || state.talk || state.battle) return;
+    const [nx, ny] = state.path.shift();
+    state.flip = nx < state.x;
+    state.trail.push([state.x, state.y]);
+    if (state.trail.length > 6) state.trail.shift();
+    state.x = nx; state.y = ny;
+    state.moving = true;
+    if (!state.path.length) {
+      state.moving = false;
+      const id = state.pending;
+      state.pending = null;
+      hud();
+      if (id) {
+        const n = npcs().find((p) => p.id === id);
+        if (n) interact(n);
+      }
+    }
+  }
+
+  function drawWorld(t) {
+    if (state.battle) return;
+    const ctx = $("view").getContext("2d");
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, 844, 390);
+    ctx.fillStyle = "#1a140f";
+    ctx.fillRect(0, 0, 844, 390);
+    const mapImg = state.map === "yangzhou" ? img.map_yangzhou : img.map_lichun;
+    if (!mapImg) return;
+    const [cx, cy] = cam();
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
+    ctx.clip();
+    ctx.drawImage(mapImg, VIEW.x - cx, VIEW.y - cy);
+    if (state.night) {
+      ctx.fillStyle = "rgba(8,10,20,0.45)";
+      ctx.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
+      ctx.globalCompositeOperation = "screen";
+      const g = ctx.createRadialGradient(VIEW.x + 200, VIEW.y + 80, 10, VIEW.x + 200, VIEW.y + 80, 90);
+      g.addColorStop(0, "rgba(255,140,60,0.35)");
+      g.addColorStop(1, "rgba(255,140,60,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(VIEW.x, VIEW.y, VIEW.w, VIEW.h);
+      ctx.globalCompositeOperation = "source-over";
+    }
+    const actors = [];
+    actors.push({ img: img.wei, x: state.x, y: state.y, flip: state.flip, who: "wei" });
+    if (state.party.includes("mao") && !state.battle) {
+      const tr = state.trail.length ? state.trail[state.trail.length - 1] : [state.x, state.y];
+      actors.push({ img: img.mao, x: tr[0], y: tr[1], flip: state.flip, who: "mao" });
+    }
+    npcs().forEach((n) => {
+      if (n.hidden) return;
+      if (n.who === "mao" && state.party.includes("mao")) return;
+      const face = n.who === "mao" ? img.mao : n.who === "guan" ? img.guan : null;
+      if (face) actors.push({ img: face, x: n.x, y: n.y, flip: false, who: n.who, npc: n });
+      else actors.push({ img: null, x: n.x, y: n.y, flip: false, who: n.who, npc: n });
+    });
+    actors.sort((a, b) => a.y - b.y);
+    const bob = state.moving ? Math.sin(t / 90) * 1.6 : Math.sin(t / 380) * 0.5;
+    actors.forEach((a) => {
+      const footx = (a.x + 0.5) * TILE - cx + VIEW.x;
+      const footy = (a.y + 1) * TILE - 8 - cy + VIEW.y + ((a.who === "wei" || (a.who === "mao" && state.party.includes("mao"))) ? bob : 0);
+      if (a.img) {
+        const h = SPRITE_H;
+        const w = h * (a.img.width / a.img.height);
+        ctx.save();
+        ctx.translate(footx, footy);
+        if (a.flip) ctx.scale(-1, 1);
+        ctx.fillStyle = "rgba(0,0,0,0.28)";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, w * 0.35, 3, 0, 0, 7);
+        ctx.fill();
+        ctx.drawImage(a.img, -w / 2, -h, w, h);
+        ctx.restore();
+        if (a.npc) drawMark(ctx, footx, footy - h - 4, a.npc);
+      } else if (a.npc) {
+        drawMark(ctx, footx, footy - 20, a.npc);
+      }
+    });
+    ctx.restore();
+  }
+  function drawMark(ctx, x, y, n) {
+    const bust = n.who === "mao" ? img.bust_mao : n.who === "guan" ? img.bust_guan : null;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, 11, 0, 7);
+    ctx.fillStyle = "#5c4030";
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#f3ead7";
+    ctx.stroke();
+    if (bust) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, 9, 0, 7);
+      ctx.clip();
+      ctx.drawImage(bust, x - 9, y - 11, 18, 22);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = "#f3ead7";
+      ctx.font = "12px KaiTi, serif";
+      ctx.textAlign = "center";
+      ctx.fillText(n.who === "gate" ? "院" : "茶", x, y + 4);
+    }
+    if (n.bang) {
+      ctx.fillStyle = "#f0d060";
+      ctx.font = "bold 14px KaiTi, serif";
+      ctx.textAlign = "left";
+      ctx.fillText("!", x + 10, y - 6);
+    }
+    ctx.restore();
+  }
+
+  function openPanel(name) {
+    if (state.battle) return;
+    state.panel = name;
+    state.menu = false;
+    $("menu-pop").hidden = true;
+    $("tip").hidden = true;
+    const titles = { role: "属性", bag: "包袱", skill: "武功", form: "布阵", art: "技艺", note: "记事", map: "地图" };
+    $("roller-title").textContent = titles[name] || "属性";
+    $("panel").hidden = false;
+    renderPaper();
+    renderPartyCol();
+    hud();
+  }
+  function closePanel() {
+    state.panel = null;
+    $("panel").hidden = true;
+    $("tip").hidden = true;
+    hud();
+  }
+  function renderPartyCol() {
+    const box = $("party-col");
+    box.innerHTML = "";
+    ["wei", "mao"].forEach((id) => {
+      const on = state.party.includes(id);
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "pcard" + (on ? "" : " off");
+      const imgEl = document.createElement("img");
+      imgEl.src = id === "wei" ? "assets/bust_wei.webp" : "assets/bust_mao.webp";
+      imgEl.alt = "";
+      const name = document.createElement("b");
+      name.textContent = id === "wei" ? "韦小宝" : "茅十八";
+      b.appendChild(imgEl);
+      b.appendChild(name);
+      if (on && state.focus === id) {
+        const z = document.createElement("i");
+        z.className = "zhan";
+        z.textContent = "战";
+        b.appendChild(z);
+      }
+      b.addEventListener("click", () => {
+        if (!on) return;
+        state.focus = id;
+        renderPaper();
+        renderPartyCol();
+      });
+      box.appendChild(b);
+    });
+  }
+  function renderPaper() {
+    const p = $("paper");
+    const name = state.panel;
+    if (name === "role") p.innerHTML = roleHTML();
+    else if (name === "bag") p.innerHTML = bagHTML();
+    else if (name === "skill") p.innerHTML = skillHTML();
+    else if (name === "form") p.innerHTML = formHTML();
+    else if (name === "art") p.innerHTML = artHTML();
+    else if (name === "note") p.innerHTML = noteHTML();
+    else if (name === "map") p.innerHTML = mapHTML();
+    p.querySelectorAll("[data-stat]").forEach((b) => b.addEventListener("click", () => addStat(b.dataset.stat)));
+    p.querySelectorAll("[data-item]").forEach((b) => b.addEventListener("click", () => showTip(b.dataset.item)));
+    p.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => {
+      const m = b.dataset.go;
+      if (m === "lichun" && !state.flags.lichun) return;
+      fade(() => {
+        state.map = m === "lichun" ? "lichun" : "yangzhou";
+        const sp = m === "lichun" ? nearestWalk("lichun", 16, 13) : nearestWalk("yangzhou", 10, 8);
+        state.x = sp[0]; state.y = sp[1]; state.path = [];
+        closePanel();
+      });
+    }));
+    const train = p.querySelector("#train");
+    if (train) train.addEventListener("click", () => {
+      const who = state.focus === "mao" ? "mao" : "wei";
+      const cost = 4;
+      if (state.stats.yueli < cost) return;
+      state.stats.yueli -= cost;
+      state.stats.exp += 6;
+      levelUp();
+      renderPaper();
+    });
+  }
+  function levelUp() {
+    const s = state.stats;
+    while (s.exp >= s.next && s.lv < 9) {
+      s.exp -= s.next;
+      s.lv++;
+      s.next = Math.round(s.next * 1.4);
+      s.points++;
+      state.hpMax.wei += 6;
+      state.hp.wei = state.hpMax.wei;
+    }
+  }
+  function addStat(k) {
+    if (state.stats.points <= 0) return;
+    state.stats.points--;
+    state.stats[k]++;
+    if (k === "li") { state.hpMax.wei += 3; state.hp.wei = state.hpMax.wei; }
+    renderPaper();
+  }
+  function roleHTML() {
+    const id = state.focus === "mao" && state.party.includes("mao") ? "mao" : "wei";
+    const s = state.stats;
+    const eq = id === "mao"
+      ? [["weapon", "单刀"], ["cloth", "灰布短打"], ["belt", "布带"], ["shoe", "裹脚"], ["hidden", "空"], ["trinket", "头巾"]]
+      : [["weapon", ownedEq("dagger") ? "匕首" : "空"], ["cloth", "蓝布短褂"], ["belt", "布带"], ["shoe", "布鞋"], ["hidden", "空"], ["trinket", "空"]];
+    const left = eq.slice(0, 3).map((e) => slotBtn(e[0], e[1])).join("");
+    const right = eq.slice(3).map((e) => slotBtn(e[0], e[1])).join("");
+    const face = id === "mao" ? "assets/mao.webp" : "assets/wei.webp";
+    const nm = id === "mao" ? "茅十八" : "韦小宝";
+    const rows = [
+      ["等级", s.lv],
+      ["臂力", s.li, "li"],
+      ["身法", s.shen, "shen"],
+      ["根骨", s.gen, "gen"],
+      ["机灵", s.ji, "ji"],
+      ["气血", state.hp[id] + "/" + state.hpMax[id]],
+      ["内力", id === "mao" ? "40/40" : "18/18"],
+      ["阅历", s.yueli],
     ];
-    state.known = { yangzhou: true, road: true, beijing: true, palace: true };
-    state.flags.qinDone = 1;
-    state.flags.knowEmperor = 1;
-    state.flags.plan = 1;
-    state.flags.open_palace = 1;
+    const attr = rows.map((r) => {
+      const plus = r[2] && s.points > 0 ? `<button type="button" class="plus-sm" data-stat="${r[2]}">+</button>` : "";
+      return `<div class="row"><span>◆ ${r[0]}</span><span>${r[1]} ${plus}</span></div>`;
+    }).join("");
+    const pct = Math.round((s.exp / s.next) * 100);
+    return `<div class="role">
+      <div class="slots">${left}</div>
+      <div class="fig"><img src="${face}" alt=""><div>${nm}</div></div>
+      <div class="slots">${right}</div>
+      <div class="attrs">
+        <h3>${nm}</h3>
+        <div class="ok">状态 全盛</div>
+        ${attr}
+        <div class="row"><span>◆ 经验</span><span>${s.exp}/${s.next}</span></div>
+        <div class="expbar"><i style="width:${pct}%"></i></div>
+        <div class="row"><span>可分配</span><span>${s.points}</span></div>
+      </div>
+    </div>`;
   }
-  function setupShot(shot) {
-    state = baseState();
-    state.fast = true;
-    if (shot === "street") { goto("free_mingyu"); return; }
-    if (shot === "talk") { goto("after_salt"); return; }
-    if (shot === "palace") {
-      latePlayer();
-      state.loc = "palace";
-      state.mode = "explore";
-      state.node = "free_palace";
-      state.figureOverride = [
-        { id: "wei", x: 0.34, y: 0.82, h: 0.32, pose: "stand" },
-        { id: "kangxi", x: 0.66, y: 0.78, h: 0.38, pose: "stand" },
-      ];
-      render();
+  function slotBtn(slot, label) {
+    const item = slot === "weapon" && label === "匕首" ? "dagger" : slot === "cloth" && label === "蓝布短褂" ? "cloth" : slot === "weapon" && label === "单刀" ? "dao" : "";
+    return `<button type="button" class="slot" data-item="${item}"><em>${slotName(slot)}</em>${label}</button>`;
+  }
+  function slotName(s) {
+    return { weapon: "武器", cloth: "衣服", belt: "腰带", shoe: "鞋子", hidden: "暗器", trinket: "饰物" }[s] || s;
+  }
+  function ownedEq(id) { return state.own[id]; }
+  function bagHTML() {
+    const ids = Object.keys(state.own).filter((id) => state.own[id] > 0);
+    return `<div class="bag">${ids.map((id) => {
+      const it = ITEMS[id];
+      return `<button type="button" data-item="${id}"><b>${it.name} ×${state.own[id]}</b><span>${it.eq ? "已装备" : "点击查看"}</span></button>`;
+    }).join("")}</div>`;
+  }
+  function skillHTML() {
+    const who = state.focus === "mao" && state.party.includes("mao") ? "mao" : "wei";
+    const list = SK[who];
+    return `<div class="list"><h3 style="font-family:var(--kai);letter-spacing:0.2em;text-align:center">${who === "mao" ? "茅十八" : "韦小宝"} · 武功</h3>
+      ${list.map((s, i) => `<div class="row"><div><b>${s.name}</b><div>主动 · 第${["一", "一", "二", "一"][i] || "一"}重 · 聚气 ${s.qi}</div><div>${s.line}</div></div></div>`).join("")}
+      <button type="button" class="mini" id="train">温习（阅历 4）</button></div>`;
+  }
+  function formHTML() {
+    return `<div class="list"><p>出战顺序。点右侧头像上的「战」，就是当前看着的人。</p>
+      ${state.party.map((id, i) => `<div class="row"><span>${i + 1}</span><span>${id === "wei" ? "韦小宝" : "茅十八"}</span></div>`).join("")}
+      ${state.party.includes("mao") ? "<p>茅十八已入队。扬州这一战，两人并肩。</p>" : "<p>还是一个人。丽春院里也许能遇上同路的。</p>"}
+    </div>`;
+  }
+  function artHTML() {
+    return `<div class="list">
+      <div class="row"><span>◆ 听书</span><span>3</span></div>
+      <div class="row"><span>◆ 市井口才</span><span>4</span></div>
+      <div class="row"><span>◆ 赌术</span><span>1</span></div>
+      <p>技艺慢慢长。这一段先用嘴和匕首。</p>
+    </div>`;
+  }
+  function noteHTML() {
+    return `<div class="list">
+      <div class="row"><div><b>鸣玉坊</b><div>${state.flags.lichun ? "已进丽春院。" : "坊南坊北不太平，先去丽春院。"}</div></div></div>
+      <div class="row"><div><b>茅十八</b><div>${state.flags.won ? "官差退了。他要往北。" : state.flags.met ? "正在跟官差动手。" : "榜上的人，赏银二千两。"}</div></div></div>
+      <div class="row"><div><b>未完</b><div>鳌拜、皇宫，都不在这一段里。</div></div></div>
+    </div>`;
+  }
+  function mapHTML() {
+    return `<div class="list">
+      <div class="row"><span>扬州</span><button type="button" class="mini" data-go="yangzhou">前往</button></div>
+      <div class="row"><span>丽春院</span><button type="button" class="mini" data-go="lichun">${state.flags.lichun ? "前往" : "未到"}</button></div>
+      <p>格子上走。坐标写在右栏。</p>
+    </div>`;
+  }
+  function showTip(id) {
+    if (!id || !ITEMS[id]) {
+      if (!id) return;
+    }
+    const it = ITEMS[id];
+    if (!it) return;
+    const tip = $("tip");
+    tip.hidden = false;
+    tip.innerHTML = `<h3></h3><p class="k">基础属性</p><p class="v"></p><p class="k">附加属性</p><p class="v"></p><p class="k">特殊效果</p><p class="v"></p><div class="btns"><button type="button" id="tip-eq">装备</button><button type="button" id="tip-drop">丢弃</button></div>`;
+    tip.querySelector("h3").textContent = it.name;
+    tip.querySelectorAll(".v")[0].textContent = it.base;
+    tip.querySelectorAll(".v")[1].textContent = it.extra;
+    tip.querySelectorAll(".v")[2].textContent = it.special;
+    $("tip-eq").addEventListener("click", () => {
+      if (it.heal) {
+        state.hp.wei = Math.min(state.hpMax.wei, state.hp.wei + it.heal);
+        state.own[id]--;
+        if (state.own[id] <= 0) delete state.own[id];
+      } else if (it.slot) {
+        it.eq = true;
+      }
+      tip.hidden = true;
+      renderPaper();
+      save();
+    });
+    $("tip-drop").addEventListener("click", () => {
+      if (id === "dagger") return;
+      state.own[id] = (state.own[id] || 1) - 1;
+      if (state.own[id] <= 0) delete state.own[id];
+      tip.hidden = true;
+      renderPaper();
+    });
+  }
+
+  function startBattle() {
+    const mk = (id, side, who, name, hp, atk, def, spd, slot) => ({
+      id, side, who, name, hp, hpMax: hp, atk, def, spd, slot, qi: side === "ally" ? 46 : 20, weak: false, blind: 0,
+    });
+    state.battle = {
+      round: 1,
+      lock: false,
+      active: "wei",
+      i: 1,
+      units: [
+        mk("wei", "ally", "wei", "韦小宝", state.hp.wei, 14 + state.stats.li * 0.3, 4, 12, 0),
+        mk("mao", "ally", "mao", "茅十八", state.hp.mao, 26, 8, 10, 1),
+        mk("g1", "enemy", "guan", "官差", 76, 15, 5, 9, 0),
+        mk("g2", "enemy", "guan", "官差", 70, 14, 5, 8, 1),
+        mk("g3", "enemy", "guan", "官差头", 88, 17, 6, 8, 2),
+      ],
+    };
+    state.talk = null;
+    renderTalk();
+    $("battle").hidden = false;
+    $("battle-bg").src = "assets/bg_alley.webp";
+    hud();
+    renderBattle();
+    if (params.get("shot") === "battle") {
+      setTimeout(() => playerSkill("wei", "brawl"), 60);
+    }
+  }
+  function renderBattle() {
+    const b = state.battle;
+    if (!b) return;
+    $("b-round").textContent = "回合 " + b.round + "/99";
+    const box = $("b-units");
+    box.innerHTML = "";
+    const posA = [[150, 292], [270, 300]];
+    const posE = [[540, 300], [660, 292], [770, 304]];
+    b.units.forEach((u) => {
+      if (u.hp <= 0) return;
+      const pos = u.side === "ally" ? posA[u.slot] : posE[u.slot];
+      const el = document.createElement("div");
+      el.className = "unit" + (u.side === "enemy" ? " flip" : "");
+      el.id = "u-" + u.id;
+      el.style.left = (pos[0] - 40) + "px";
+      el.style.top = (pos[1] - 200) + "px";
+      const buff = (u.weak ? "<i class='bf bf-ruo'>弱</i>" : "") + (u.blind ? "<i class='bf bf-mang'>盲</i>" : "") + (u.who === "mao" ? "<i class='bf bf-hu'>护</i>" : "");
+      el.innerHTML = `<div class="uname"></div><div class="buffs">${buff}</div><div class="hp"><i></i></div><div class="qibar">${qiSeg(u.qi)}</div><img alt="">`;
+      el.querySelector(".uname").textContent = u.name;
+      el.querySelector(".hp i").style.width = Math.max(0, u.hp / u.hpMax * 100) + "%";
+      const im = el.querySelector("img");
+      im.src = u.who === "wei" ? "assets/wei.webp" : u.who === "mao" ? "assets/mao.webp" : "assets/guan.webp";
+      box.appendChild(el);
+    });
+    const bar = $("b-skills");
+    bar.innerHTML = "";
+    b.units.filter((u) => u.side === "ally" && u.hp > 0).forEach((u) => {
+      const wrap = document.createElement("div");
+      wrap.className = "skillset";
+      const vn = document.createElement("div");
+      vn.className = "vname";
+      vn.textContent = u.name;
+      const col = document.createElement("div");
+      col.className = "slots-row";
+      const row = document.createElement("div");
+      row.className = "srow";
+      SK[u.who].forEach((sk) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "sbtn";
+        btn.disabled = b.lock || b.active !== u.id || u.qi < sk.qi;
+        btn.innerHTML = "<span></span>" + (sk.qi ? "<small></small>" : "");
+        btn.querySelector("span").textContent = sk.name.slice(0, 2);
+        if (sk.qi) btn.querySelector("small").textContent = sk.qi;
+        btn.addEventListener("click", () => playerSkill(u.id, sk.id));
+        row.appendChild(btn);
+      });
+      const under = document.createElement("div");
+      under.className = "qiunder";
+      under.innerHTML = qiSeg(u.qi);
+      col.appendChild(row);
+      col.appendChild(under);
+      wrap.appendChild(vn);
+      wrap.appendChild(col);
+      bar.appendChild(wrap);
+    });
+  }
+  function qiSeg(qi) {
+    const n = Math.round(qi / 10);
+    let s = "";
+    for (let i = 0; i < 10; i++) s += `<i class="${i < n ? "on" : ""}"></i>`;
+    return s;
+  }
+  function playerSkill(id, sid) {
+    const b = state.battle;
+    if (!b || b.lock) return;
+    const u = b.units.find((x) => x.id === id);
+    const sk = SK[u.who].find((s) => s.id === sid);
+    if (!u || !sk || u.qi < sk.qi || b.active !== id) return;
+    b.lock = true;
+    u.qi -= sk.qi;
+    resolveSkill(u, sk, () => {
+      b.lock = false;
+      if (endCheck()) return;
+      advanceTurn();
+    });
+  }
+  function enemyAct(u) {
+    const b = state.battle;
+    if (!b || u.hp <= 0) { advanceTurn(); return; }
+    const list = SK.guan;
+    const sk = u.qi >= 30 && Math.random() < 0.45 ? list[1] : list[0];
+    if (sk.qi) u.qi -= sk.qi;
+    b.lock = true;
+    resolveSkill(u, sk, () => {
+      b.lock = false;
+      if (endCheck()) return;
+      advanceTurn();
+    });
+  }
+  function resolveSkill(user, sk, done) {
+    callout(sk.name);
+    const foes = state.battle.units.filter((u) => u.hp > 0 && u.side !== user.side);
+    if (!foes.length) { done(); return; }
+    const targets = sk.aoe ? foes : [foes[0]];
+    const el = $("u-" + user.id);
+    if (el) el.classList.add(user.side === "ally" ? "lunge" : "lungeR");
+    setTimeout(() => {
+      if (user.blind && Math.random() < 0.4) {
+        floatText("失误", targets[0], false);
+      } else {
+        targets.forEach((tg) => {
+          const weak = user.weak ? 0.8 : 1;
+          const d = Math.max(1, Math.round((user.atk * sk.mult - tg.def * 0.3) * weak * (0.9 + Math.random() * 0.22)));
+          tg.hp = Math.max(0, tg.hp - d);
+          if (sk.weak) tg.weak = true;
+          if (sk.blind) tg.blind = 2;
+          floatText("-" + d, tg, false);
+          burst(tg);
+        });
+        $("battle").classList.remove("shake");
+        void $("battle").offsetWidth;
+        $("battle").classList.add("shake");
+      }
+      renderBattle();
+      targets.forEach((tg) => {
+        const tel = $("u-" + tg.id);
+        if (tel && tg.hp > 0) tel.classList.add("flash");
+      });
+      setTimeout(done, state.fast ? 30 : 420);
+    }, state.fast ? 20 : 180);
+  }
+  function callout(name) {
+    const el = $("b-call");
+    el.textContent = name;
+    el.classList.remove("on");
+    void el.offsetWidth;
+    el.classList.add("on");
+  }
+  function floatText(text, unit, heal) {
+    const posA = [[150, 292], [270, 300]];
+    const posE = [[540, 300], [660, 292], [770, 304]];
+    const pos = unit.side === "ally" ? posA[unit.slot] : posE[unit.slot];
+    const n = document.createElement("div");
+    n.className = heal ? "heal" : "dmg";
+    n.textContent = text;
+    n.style.left = pos[0] + "px";
+    n.style.top = (pos[1] - 150) + "px";
+    $("battle").appendChild(n);
+    setTimeout(() => n.remove(), params.get("shot") === "battle" ? 20000 : 1100);
+  }
+  function burst(unit) {
+    const el = $("u-" + unit.id);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const app = $("app").getBoundingClientRect();
+    const scale = app.width / 844;
+    const x = (r.left - app.left) / scale + 36;
+    const y = (r.top - app.top) / scale + 70;
+    for (let i = 0; i < 10; i++) {
+      sparks.push({
+        x, y,
+        vx: (Math.random() - 0.5) * 5,
+        vy: (Math.random() - 0.7) * 4,
+        r: 5 + Math.random() * 12,
+        life: 1,
+      });
+    }
+  }
+  function advanceTurn() {
+    const b = state.battle;
+    if (!b) return;
+    let guard = 0;
+    while (guard++ < 8) {
+      const u = b.units[b.i % b.units.length];
+      b.i++;
+      if (b.i % b.units.length === 0) b.round = Math.min(99, b.round + 1);
+      if (u.hp <= 0) continue;
+      u.qi = Math.min(100, u.qi + 36);
+      if (u.blind) u.blind--;
+      b.active = u.id;
+      renderBattle();
+      if (u.side === "enemy") setTimeout(() => enemyAct(u), state.fast ? 40 : 520);
       return;
     }
-    if (shot === "battle") {
-      latePlayer();
-      state.loc = "study";
-      beginBattle("aobai");
-      return;
+  }
+  function endCheck() {
+    const b = state.battle;
+    if (!b.units.some((u) => u.side === "enemy" && u.hp > 0)) { winBattle(); return true; }
+    if (!b.units.some((u) => u.side === "ally" && u.hp > 0)) { loseBattle(); return true; }
+    return false;
+  }
+  function winBattle() {
+    const b = state.battle;
+    b.units.forEach((u) => { if (state.hp[u.id] != null) state.hp[u.id] = Math.max(1, u.hp); });
+    state.battle = null;
+    $("battle").hidden = true;
+    state.flags.won = 1;
+    state.wen += 350;
+    state.stats.exp += 24;
+    state.stats.yueli += 6;
+    levelUp();
+    hud();
+    openTalk([
+      { who: "mao", name: "茅十八", text: "韦兄弟，这一架打得漂亮。官差退了。" },
+      { who: "wei", name: "韦小宝", text: "老鬼头，刀是你的，嘴是我的。石灰下次我还撒。" },
+    ], null, showEnd);
+    save();
+  }
+  function loseBattle() {
+    state.battle = null;
+    $("battle").hidden = true;
+    state.hp.wei = state.hpMax.wei;
+    state.hp.mao = state.hpMax.mao;
+    openTalk([{ who: "mao", name: "茅十八", text: "还没死？起来。再打过。" }], null, startBattle);
+  }
+  function showEnd() {
+    $("end").hidden = false;
+    $("end-text").textContent = "茅十八还要往北，去会会那个鳌拜。皇宫、小桂子、康熙，都在后头。扬州丽春院这一架，先停在这里。";
+    hud();
+  }
+
+  const sparks = [];
+  function drawFx() {
+    const ctx = $("fx").getContext("2d");
+    ctx.clearRect(0, 0, 844, 390);
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const p = sparks[i];
+      p.x += p.vx; p.y += p.vy; p.life -= 0.04;
+      if (p.life <= 0) { sparks.splice(i, 1); continue; }
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = "rgba(20,16,14,0.85)";
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, p.r, p.r * 0.6, p.vx, 0, 7);
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
-    if (shot === "char") {
-      latePlayer();
-      state.panel = "char";
-      state.mode = "panel";
-      state.prev = "explore";
-      render();
-      return;
-    }
-    if (shot === "sheet") {
-      state.mode = "sheet";
-      state.node = "";
-      render();
-      return;
-    }
-    state.mode = "title";
-    render();
+  }
+
+  let moveAcc = 0;
+  function loop(t) {
+    raf = requestAnimationFrame(loop);
+    if (!state || !masks) return;
+    if (!state.battle) {
+      moveAcc += state.fast ? 40 : 16;
+      const step = state.fast ? 40 : 130;
+      if (moveAcc > step) { moveAcc = 0; stepMove(); if (!state.path.length) hud(); }
+      drawWorld(t || 0);
+    } else drawFx();
+    if (state.battle) drawFx();
+  }
+
+  function save() {
+    try {
+      const slim = {
+        map: state.map, x: state.x, y: state.y, party: state.party, flags: state.flags,
+        stats: state.stats, hp: state.hp, hpMax: state.hpMax, sta: state.sta, wen: state.wen,
+        gold: state.gold, own: state.own, hour: state.hour, night: state.night, focus: state.focus,
+      };
+      localStorage.setItem(KEY, JSON.stringify(slim));
+    } catch (e) { /* ignore */ }
+  }
+  function loadSave() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return false;
+      const s = JSON.parse(raw);
+      Object.assign(state, s);
+      state.path = [];
+      state.trail = [];
+      state.talk = null;
+      state.battle = null;
+      state.panel = null;
+      return true;
+    } catch (e) { return false; }
   }
 
   function bind() {
-    $("btn-new").addEventListener("click", newGame);
-    $("btn-cont").addEventListener("click", function () { if (!loadGame()) toast("还没有记下的事"); });
-    $("btn-sheet").addEventListener("click", function () {
-      state.prev = "title";
-      state.node = state.node || "";
-      state.mode = "sheet";
-      render();
+    $("view").addEventListener("pointerdown", clickMap);
+    $("dlg").addEventListener("pointerdown", (e) => {
+      if (e.target.closest("#choices")) return;
+      advanceTalk();
     });
-    $("dlg").addEventListener("click", function () { if (state.mode === "talk") advance(); });
-    document.querySelectorAll("#tabs .tab").forEach(function (b) {
-      b.addEventListener("click", function () { openPanel(b.getAttribute("data-panel")); });
+    $("panel-x").addEventListener("click", closePanel);
+    $("sta-plus").addEventListener("click", () => { state.sta = Math.min(state.staMax, state.sta + 10); hud(); });
+    $("gold-plus").addEventListener("click", () => { state.gold += 0; toast("金两不是这么来的"); });
+    $("notice").addEventListener("click", () => toast("公告：扬州城捉拿茅十八，赏银二千两。"));
+    $("end-back").addEventListener("click", () => { $("end").hidden = true; hud(); });
+    document.querySelectorAll("#side .grid2 button").forEach((b) => {
+      b.addEventListener("click", () => {
+        const k = b.dataset.menu;
+        if (k === "menu") {
+          $("menu-pop").hidden = !$("menu-pop").hidden;
+          if (!$("menu-pop").hidden) {
+            $("menu-pop").innerHTML = "<button type='button' data-a='save'>存档</button><button type='button' data-a='load'>读档</button><button type='button' data-a='night'>昼夜</button>";
+            $("menu-pop").querySelectorAll("button").forEach((x) => x.addEventListener("click", () => {
+              const a = x.dataset.a;
+              if (a === "save") { save(); toast("已记下"); }
+              if (a === "load" && loadSave()) { toast("读回来了"); closePanel(); hud(); }
+              if (a === "night") { state.night = !state.night; state.hour = state.night ? 4 : 2; hud(); }
+              $("menu-pop").hidden = true;
+            }));
+          }
+        } else if (k === "act") toast("坊里今日无集市");
+        else if (k === "shop") toast("扬州的铺子，不兴这一套");
+        else toast("茶馆便是社区");
+      });
     });
-    document.addEventListener("keydown", function (e) {
-      if (e.key === " " || e.key === "Enter") {
-        if (state.mode === "talk") { e.preventDefault(); advance(); }
+    const dock = $("dock");
+    DOCK.forEach(([id, label, icon]) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.innerHTML = `<i class="ico">${icon()}</i><span></span>`;
+      b.querySelector("span").textContent = label;
+      b.addEventListener("click", () => openPanel(id));
+      dock.appendChild(b);
+    });
+    window.addEventListener("resize", fit);
+    window.addEventListener("orientationchange", fit);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === " " || e.key === "Enter") advanceTalk();
+      if (e.key >= "1" && e.key <= "3" && state.talk && state.talk.choices && state.talk.i >= state.talk.lines.length - 1) {
+        pickChoice(state.talk.choices[Number(e.key) - 1]);
       }
-      if (e.key >= "1" && e.key <= "9" && state.mode === "choice") choose(Number(e.key) - 1);
     });
-    window.addEventListener("resize", resize);
-    if (window.visualViewport) window.visualViewport.addEventListener("resize", resize);
+  }
+  function toast(msg) {
+    const n = document.createElement("div");
+    n.textContent = msg;
+    n.style.cssText = "position:absolute;z-index:19;left:50%;top:46%;transform:translate(-50%,-50%);background:#f3ead7;border:1px solid #3c2a1e;padding:6px 12px;font-family:KaiTi,serif;letter-spacing:0.12em";
+    $("app").appendChild(n);
+    setTimeout(() => n.remove(), 1200);
+  }
+  function fit() {
+    const portrait = window.innerHeight > window.innerWidth + 30;
+    document.body.classList.toggle("portrait", portrait);
+    if (portrait) return;
+    const s = Math.min(window.innerWidth / 844, window.innerHeight / 390);
+    $("app").style.transform = "scale(" + s + ")";
+  }
+
+  function personIcon() { return svg("<circle cx='12' cy='8' r='3.2' fill='#f3ead7'/><path d='M6 18c1-3 3-4.5 6-4.5S17 15 18 18' stroke='#f3ead7' fill='none' stroke-width='1.6'/>"); }
+  function bagIcon() { return svg("<path d='M8 9h8v8H8z' fill='none' stroke='#f3ead7' stroke-width='1.4'/><path d='M10 9V7h4v2' fill='none' stroke='#f3ead7'/>"); }
+  function swordIcon() { return svg("<path d='M6 16 L16 6 M14 6h3v3' stroke='#f3ead7' fill='none' stroke-width='1.6'/>"); }
+  function flagIcon() { return svg("<path d='M8 5v12M8 6h7l-1.5 2L15 10H8' fill='#f3ead7'/>"); }
+  function potIcon() { return svg("<path d='M8 10h8v5a4 4 0 0 1-8 0z' fill='none' stroke='#f3ead7'/><path d='M16 12h2' stroke='#f3ead7'/>"); }
+  function bookIcon() { return svg("<path d='M7 6h10v10H7z' fill='none' stroke='#f3ead7'/><path d='M12 6v10' stroke='#f3ead7'/>"); }
+  function mapIcon() { return svg("<path d='M6 7l4-1 4 2 4-1v10l-4 1-4-2-4 1z' fill='none' stroke='#f3ead7'/>"); }
+  function svg(inner) { return `<svg viewBox="0 0 24 24">${inner}</svg>`; }
+
+  function applyShot(shot) {
+    state.flags.intro = 1;
+    if (shot === "street") { hud(); return; }
+    if (shot === "lichun" || shot === "talk" || shot === "char" || shot === "battle" || shot === "end") {
+      state.map = "lichun";
+      state.flags.lichun = 1;
+      const p = nearestWalk("lichun", 16, 13);
+      state.x = p[0]; state.y = p[1];
+    }
+    if (shot === "talk") {
+      openMao();
+      state.talk.i = state.talk.lines.length - 1;
+      renderTalk();
+    }
+    if (shot === "char") { state.party.push("mao"); openPanel("role"); }
+    if (shot === "battle") { state.party.push("mao"); state.flags.met = 1; startBattle(); }
+    if (shot === "end") {
+      state.party.push("mao");
+      state.flags.won = 1;
+      state.flags.met = 1;
+      showEnd();
+    }
+    hud();
   }
 
   function boot() {
+    state = fresh();
     bind();
-    resize();
+    fit();
     const shot = params.get("shot");
-    if (shot) setupShot(shot);
-    else {
-      state = baseState();
-      state.mode = "title";
-      render();
-    }
-    if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(function () { cacheKey = ""; });
-    }
-    requestAnimationFrame(frame);
+    Promise.all([
+      load("map_yangzhou"), load("map_lichun"), load("bg_alley"),
+      load("wei"), load("mao"), load("guan"),
+      load("bust_wei"), load("bust_mao"), load("bust_guan"),
+      fetch("assets/masks.json").then((r) => r.json()),
+    ]).then((all) => {
+      masks = all[9];
+      if (shot) applyShot(shot);
+      else {
+        hud();
+        openTalk([
+          { who: "wei", name: "韦小宝", text: "扬州瘦西湖畔，鸣玉坊。丽春院是我娘当差的地方，我天天在这儿钻。" },
+          { who: "wei", name: "韦小宝", text: "今儿坊里不太平。先去茶馆听听，再去丽春院看热闹。" },
+        ]);
+      }
+      requestAnimationFrame(loop);
+    }).catch((e) => {
+      console.error(e);
+      toast("画面没载上");
+    });
+  }
+  function load(name) {
+    return new Promise((res, rej) => {
+      const im = new Image();
+      im.onload = () => { img[name] = im; res(im); };
+      im.onerror = rej;
+      im.src = "assets/" + name + ".webp";
+    });
   }
 
-  window.LDJ = {
+  window.GY = {
     get state() { return state; },
-    goto: goto,
-    advance: advance,
-    choose: choose,
-    act: act,
-    newGame: newGame,
-    save: save,
-    load: loadGame,
-    beginBattle: beginBattle,
+    clickMap, interact, advanceTalk, pickChoice, openPanel, startBattle, playerSkill, npcs, astar,
   };
   boot();
 })();
