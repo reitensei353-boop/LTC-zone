@@ -31,7 +31,9 @@ def grid_to_img(rows, pal):
             px[x, y] = pal[ch]
     return im
 
-# ---- 1. Bai Ningbing (White-haired girl in white) 16x16 map/battle sprite ----
+# ---- 1. Legacy Bai Ningbing pixels. The frames actually pasted for 白凝冰
+# (walk, battle, portrait) are replaced below by tools/draw_bnb.py.
+# PB is kept only as the base of the 白家蛊师 portrait (face_bnb_boy). ----
 PAL_BNB = {
     '.': (0, 0, 0, 0),
     'K': (14, 18, 32, 255),      # cool dark outline
@@ -327,7 +329,12 @@ rects['bai_guard'] = [64, 32, 16, 16]
 
 A.paste(xj_16, (80, 32)); A.paste(xj_16, (80, 48)); rects['xiongjiao'] = [80, 32, 16, 16]
 A.paste(bnb_boy_16, (96, 32)); A.paste(bnb_boy_16, (96, 48)); rects['bnb_boy'] = [96, 32, 16, 16]
-A.paste(bnb_girl_16, (112, 32)); A.paste(bnb_girl_16, (112, 48)); rects['bnb_girl'] = [112, 32, 16, 16]
+# Bai Ningbing's own frames (map walk, not the guard) come from draw_bnb.py.
+import sys as _sys
+_sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from draw_bnb import walk_frames as _bnb_walk, battle_32 as _bnb_battle, portrait_48 as _bnb_face
+_w0, _w1 = _bnb_walk()
+A.paste(_w0, (112, 32)); A.paste(_w1, (112, 48)); rects['bnb_girl'] = [112, 32, 16, 16]
 A.paste(bat_16, (128, 32)); A.paste(bat_16, (128, 48)); rects['bloodbat'] = [128, 32, 16, 16]
 
 # Faces row y=96 (38x38)
@@ -344,7 +351,7 @@ A.paste(PB_BOY_38, (208, 0)); rects['face_bnb_boy'] = [208, 0, 38, 38]
 
 # 48x48 portraits at y=134..182
 A.paste(L('fangyuan_portrait.png'), (192, 134)); rects['face_hero'] = [192, 134, 48, 48]
-A.paste(PB, (242, 134)); rects['face_bnb_girl'] = [242, 134, 48, 48]
+A.paste(_bnb_face(), (242, 134)); rects['face_bnb_girl'] = [242, 134, 48, 48]
 A.paste(PA, (292, 134)); rects['face_ancestor'] = [292, 134, 48, 48]
 
 # Wolves
@@ -426,7 +433,7 @@ A.paste(BEAR32, (0, 280)); rects['bear_e'] = [0, 280, 32, 32]
 iw0 = tint(wolf_frames(128, 128)[0], icew)
 A.paste(iw0, (32, 280)); outline((32, 280, 64, 312), (24, 52, 92, 255)); rects['icewolf'] = [32, 280, 32, 32]
 A.paste(ANC32, (64, 280)); rects['ancestor'] = [64, 280, 32, 32]
-A.paste(BNB32, (96, 280)); rects['bnb_girl32'] = [96, 280, 32, 32]
+A.paste(_bnb_battle(), (96, 280)); rects['bnb_girl32'] = [96, 280, 32, 32]
 
 A.save('atlas.png', optimize=True)
 json.dump(rects, open('rects.json', 'w'))
