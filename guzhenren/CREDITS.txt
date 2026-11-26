@@ -25,7 +25,7 @@ Terrain tiles (grass, bamboo, rock, cave, path, palisade) are original pixel art
 
 5. Prologue and Qing Mao chapter sprites, drawn for this game
    Older Fang Yuan (hero_old, face_hero_old), righteous-path vanguard and alliance leader,
-   Bai Ningbing (white hair, white robe), Xiong-clan fighter, blood bat, frost wolf, armored bear,
+   Bai Ningbing (银发白衣的年轻男子，容貌男女莫辨；青绿色领口与腰带，见 tools/draw_bnb.py), Xiong-clan fighter, blood bat, frost wolf, armored bear,
    and the first-generation portrait. See tools/draw_prologue.py and tools/draw_ch23.py.
    These are original pixel drawings, not third-party assets.
 
