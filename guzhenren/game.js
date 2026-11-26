@@ -663,6 +663,44 @@
     if (inBattle && kind === "bnb") return 32;
     return BIG32.indexOf(kind) >= 0 ? 32 : 16;
   }
+  const spanCache = {};
+  /** Opaque rows of every battle frame, so a tall sprite can be fitted without clipping its head. */
+  function battleSpan(kind, atlas) {
+    const key = kind + ":" + (atlas && atlas.naturalWidth ? atlas.naturalWidth : 0);
+    if (spanCache[key]) return spanCache[key];
+    let top = 0;
+    let bottom = 15;
+    if (atlas && atlas.naturalWidth) {
+      let found = false;
+      top = 999;
+      bottom = -1;
+      const sample = document.createElement("canvas");
+      const sctx = sample.getContext("2d", { willReadFrequently: true });
+      const k = atlas.naturalWidth / ATLAS_W;
+      for (let f = 0; f < 4; f++) {
+        const rect = enemyRect(kind, f, true);
+        if (!rect || !sctx) continue;
+        sample.width = rect[2];
+        sample.height = rect[3];
+        sctx.clearRect(0, 0, rect[2], rect[3]);
+        sctx.drawImage(atlas, rect[0] * k, rect[1] * k, rect[2] * k, rect[3] * k, 0, 0, rect[2], rect[3]);
+        const data = sctx.getImageData(0, 0, rect[2], rect[3]).data;
+        for (let y = 0; y < rect[3]; y++) {
+          for (let x = 0; x < rect[2]; x++) {
+            if (data[(y * rect[2] + x) * 4 + 3] > 16) {
+              if (y < top) top = y;
+              if (y > bottom) bottom = y;
+              found = true;
+              break;
+            }
+          }
+        }
+      }
+      if (!found) { top = 0; bottom = 15; }
+    }
+    spanCache[key] = { top: top, bottom: bottom };
+    return spanCache[key];
+  }
   function drawBackdrop(ctx, scene, now) {
     const skies = {
       village: ["#41a6f6", "#73c4f8", "#a6dcfa", "#cdeefc"],
@@ -1603,12 +1641,24 @@
           : (b.kind === "boss" || b.kind === "bigwolf") ? "night" : "forest";
         drawBackdrop(ctx, scene, tick);
         const size = enemySize(b.kind, atlas, true);
-        const scale = !atlas ? 4 : size === 32 ? (BOSS_KINDS.indexOf(b.kind) >= 0 ? 4 : 3) : 4;
+        let scale = !atlas ? 4 : size === 32 ? (BOSS_KINDS.indexOf(b.kind) >= 0 ? 4 : 3) : 4;
+        const span = battleSpan(b.kind, atlas);
+        // Feet rest on y=96, just above the HP bar at y=104. If the opaque
+        // top would leave the canvas, drop to the largest integer scale that
+        // keeps the whole head inside.
+        const contentH = Math.max(1, span.bottom - span.top + 1);
+        if (96 - (span.bottom + 1) * scale + span.top * scale < 2) {
+          scale = Math.max(1, Math.floor(98 / contentH));
+        }
         const ew = size * scale;
         const cx = BOSS_KINDS.indexOf(b.kind) >= 0 ? 116 : 124;
         const sx = fx.shake > 0 ? (fx.shake % 4 < 2 ? 3 : -3) : 0;
         const ex = cx - ew / 2 + sx - (fx.elunge > 0 ? Math.round(Math.sin((fx.elunge / 12) * Math.PI) * 18) : 0);
-        const ey = 96 - ew;
+        let ey = 96 - (span.bottom + 1) * scale;
+        const head = ey + span.top * scale;
+        if (head < 2) ey += 2 - head;
+        const foot = ey + (span.bottom + 1) * scale;
+        if (foot > 100) ey -= foot - 100;
         const rect = enemyRect(b.kind, Math.floor(tick / 10) % 4, true);
         if (BOSS_KINDS.indexOf(b.kind) >= 0 || b.charging) {
           ctx.fillStyle = tick % 8 < 4 ? "rgba(255,205,117,0.18)" : "rgba(115,239,247,0.18)";
