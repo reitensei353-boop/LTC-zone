@@ -80,7 +80,7 @@
     width: 100%;
     height: auto;
     display: block;
-    image-rendering: auto;
+    image-rendering: pixelated;
     background: #1a1c2c;
   }
   .pad { padding: 0 12px; }
@@ -188,7 +188,7 @@
     position: relative;
   }
   .portrait {
-    image-rendering: auto;
+    image-rendering: pixelated;
     border-radius: 8px;
     border: 2px solid var(--text);
     display: block;
@@ -253,12 +253,10 @@
     flex: none;
   }
   #view {
-    width: 100%;
-    max-width: 440px;
-    height: auto;
-    aspect-ratio: 176 / 144;
+    width: 352px;
+    height: 288px;
     display: block;
-    image-rendering: auto;
+    image-rendering: pixelated;
     touch-action: none;
     background: #1a1c2c;
   }
@@ -385,7 +383,7 @@
   <div id="title" class="scroll"></div>
   <div id="play" hidden>
     <div id="hud"></div>
-    <div id="view-wrap"><canvas id="view" width="176" height="144"></canvas></div>
+    <div id="view-wrap"><canvas id="view" width="352" height="288"></canvas></div>
     <div id="panel" class="scroll"></div>
   </div>
 </div>
