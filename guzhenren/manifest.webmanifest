@@ -1,19 +1,14 @@
 {
-  "name": "蛊真人·青茅山",
-  "short_name": "蛊真人",
+  "name": "鹿鼎记",
+  "short_name": "鹿鼎记",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#12141c",
-  "theme_color": "#12141c",
+  "orientation": "landscape",
+  "background_color": "#0a0707",
+  "theme_color": "#0a0707",
   "lang": "zh-CN",
   "icons": [
-    {
-      "src": "apple-touch-icon.png",
-      "sizes": "180x180",
-      "type": "image/png",
-      "purpose": "any"
-    }
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
   ]
 }
