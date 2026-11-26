@@ -33,11 +33,10 @@ The title banner is assembled from the same atlas by tools/rebuild_all.py.
 It is still the original low-resolution pixel painting.
 
 6. In-game hard-edge pixel layer (guzhenren/hd.js)
-   Map tiles, houses, trees, props, and the figures used on the map, in battle,
-   and in dialogue portraits are original hard-edge pixel drawings. The view is
-   a 352×288 bitmap shown at an integer scale with image-rendering: pixelated.
-   People are about two heads tall, with a dark outline, two or three robe
-   shades, and a small gu-light beside the hand. Costumes are unchanged:
-   Fang Yuan has long black hair, a white tasseled scarf, and a grey robe;
-   Bai Ningbing has long silver hair, ice-blue eyes, and a white robe with
-   teal collar and sash. No fog, blur, or non-integer scaling.
+   Map tiles, houses, trees, props, monsters, and people are original hard-edge
+   pixel drawings on a 352×288 bitmap, shown at an integer scale with
+   image-rendering: pixelated. People are slender adult figures, about one head
+   to five and a half bodies, with small eyes and a dark outline. No fog, blur,
+   or non-integer scaling. Fang Yuan keeps long black hair, a white tasseled
+   scarf, and a grey robe. Bai Ningbing keeps long silver hair, ice-blue eyes,
+   and a white robe with a teal collar and sash.
