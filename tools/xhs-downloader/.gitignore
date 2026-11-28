@@ -1,0 +1,7 @@
+.wrangler/
+node_modules/
+__pycache__/
+*.mp4
+*.mov
+*.webm
+*.part

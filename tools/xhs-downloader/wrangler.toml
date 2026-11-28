@@ -1,0 +1,7 @@
+name = "xhs-downloader"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+workers_dev = true
+
+# 不填写 account_id，也不要在这里放 API Token。
+# 本机执行 `npx wrangler login` 之后再 `npx wrangler deploy`。

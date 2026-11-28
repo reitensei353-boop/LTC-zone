@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14080c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="小红书下载">
+<title>小红书无水印下载</title>
+<style>
+  :root {
+    --bg: #14080c;
+    --card: rgba(255, 255, 255, 0.12);
+    --card-border: rgba(255, 255, 255, 0.2);
+    --text: #fff;
+    --muted: rgba(255, 255, 255, 0.68);
+    --red: #ff2442;
+    --red-deep: #d81e3a;
+    --good: #7dffa8;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+    --font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: var(--font);
+    color: var(--text);
+    background:
+      radial-gradient(900px 420px at 10% -10%, rgba(255, 36, 66, 0.35), transparent 60%),
+      radial-gradient(700px 380px at 110% 8%, rgba(255, 180, 80, 0.16), transparent 55%),
+      var(--bg);
+    padding: calc(16px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
+  }
+  .wrap { max-width: 520px; margin: 0 auto; }
+  a { color: inherit; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .back, .ghost {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 40px; padding: 8px 14px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.22);
+    color: #fff; text-decoration: none; font-size: 14px;
+  }
+  h1 { font-size: 26px; line-height: 1.25; margin: 0 0 6px; font-weight: 700; }
+  .lead { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.55; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 16px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: var(--shadow);
+  }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  textarea, input[type="url"] {
+    width: 100%; border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 12px;
+    background: rgba(0, 0, 0, 0.28); color: #fff; font: 16px/1.45 var(--font);
+    padding: 12px 14px; outline: none;
+  }
+  textarea { min-height: 112px; resize: vertical; }
+  textarea:focus, input[type="url"]:focus { border-color: rgba(255, 36, 66, 0.85); }
+  .actions { display: flex; gap: 10px; margin-top: 12px; }
+  button, .btn {
+    appearance: none; border: 0; cursor: pointer; text-decoration: none; text-align: center;
+    font: 600 16px/1 var(--font); border-radius: 12px; min-height: 48px;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0 16px;
+  }
+  button:disabled { opacity: 0.55; cursor: progress; }
+  .primary { background: var(--red); color: #fff; flex: 1; }
+  .primary:hover { background: var(--red-deep); }
+  .secondary { background: rgba(255, 255, 255, 0.14); color: #fff; border: 1px solid rgba(255, 255, 255, 0.22); }
+  .stack { display: grid; gap: 10px; margin-top: 12px; }
+  .stack .btn, .stack button { width: 100%; }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+  .settings { margin-top: 12px; display: grid; gap: 10px; }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; }
+  .row button { min-width: 72px; }
+  .hint, .error, .warn, .okline {
+    border-radius: 12px; padding: 12px 14px; font-size: 14px; line-height: 1.55; margin-top: 12px;
+  }
+  .hint { background: rgba(255, 255, 255, 0.08); color: var(--muted); }
+  .error { background: rgba(255, 36, 66, 0.16); color: #ffd5dc; }
+  .warn { background: rgba(255, 186, 73, 0.14); color: #ffe3b0; }
+  .okline { background: rgba(125, 255, 168, 0.1); color: var(--good); }
+  .hidden { display: none; }
+  .meta { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+  .meta img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; background: #000; }
+  .meta h2 { font-size: 17px; margin: 0 0 4px; line-height: 1.35; }
+  .meta p { margin: 0; color: var(--muted); font-size: 13px; }
+  video { width: 100%; border-radius: 12px; background: #000; max-height: 70vh; }
+  .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .shot { display: block; color: inherit; text-decoration: none; }
+  .shot img { width: 100%; border-radius: 12px; display: block; background: #000; }
+  .shot span { display: block; text-align: center; font-size: 13px; margin-top: 6px; color: var(--muted); }
+  .foot { margin-top: 18px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .foot a { color: #ffb4c0; }
+  ol { margin: 8px 0 0; padding-left: 18px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="back" href="index.html">← 返回</a>
+    <span id="config-pill" class="ghost">未配置</span>
+  </div>
+  <h1>小红书无水印下载</h1>
+  <p class="lead">粘贴分享文案或链接，解析后可预览并保存原片。浏览器不能直接打开小红书，所以要先填一个你自己的 Cloudflare Worker 地址。</p>
+
+  <form id="form" class="card">
+    <label for="share">分享文案</label>
+    <textarea id="share" placeholder="例如：https://xhslink.cn/o/xxxx 存好口令，直达【小红书】瞅瞅~" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go"></textarea>
+    <div class="actions">
+      <button class="primary" id="go" type="submit">解析</button>
+    </div>
+    <p id="status" class="hint hidden" role="status"></p>
+    <p id="error" class="error hidden"></p>
+  </form>
+
+  <div class="card" style="margin-top:14px">
+    <details id="settings">
+      <summary>Worker 地址</summary>
+      <div class="settings">
+        <label for="worker">https://……workers.dev</label>
+        <div class="row">
+          <input id="worker" type="url" inputmode="url" placeholder="https://xhs-downloader.你的名字.workers.dev" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <button class="secondary" id="save" type="button">保存</button>
+        </div>
+        <div class="row">
+          <button class="secondary" id="test" type="button">测试连接</button>
+          <button class="secondary" id="clear" type="button">清除</button>
+        </div>
+        <p id="save-msg" class="hint hidden"></p>
+      </div>
+    </details>
+  </div>
+
+  <div id="setup" class="card hint" style="margin-top:14px">
+    <strong style="color:#fff">还没配置解析服务</strong>
+    <ol>
+      <li>用免费的 Cloudflare 账号部署 <code>tools/xhs-downloader/worker.js</code>。</li>
+      <li>电脑上进入该目录，执行 <code>npx wrangler login</code>，再执行 <code>npx wrangler deploy</code>。也可以把 <code>worker.js</code> 整份粘贴到 Cloudflare 控制台。</li>
+      <li>把得到的 <code>https://….workers.dev</code> 填到上面的「Worker 地址」并保存。地址只存在这台手机的浏览器里。</li>
+    </ol>
+    <p>详细步骤写在仓库的 <a href="https://github.com/reitensei353-boop/LTC-zone/blob/main/tools/xhs-downloader/README.md">README</a>。页面地址：<code>https://reitensei353-boop.github.io/LTC-zone/xhs.html</code></p>
+  </div>
+
+  <section id="result" class="card hidden" style="margin-top:14px"></section>
+  <p class="foot">只适合保存你自己已经能打开的公开分享。合并到 main 之后，GitHub Pages 才会更新这个页面。</p>
+</div>
+
+<script>
+// 部署 Worker 后可以把地址写在这里。留空时，用页面里的输入框保存到 localStorage。
+const DEFAULT_WORKER_URL = "";
+const STORAGE_KEY = "xhs-worker-url";
+
+const form = document.getElementById("form");
+const shareEl = document.getElementById("share");
+const goBtn = document.getElementById("go");
+const statusEl = document.getElementById("status");
+const errorEl = document.getElementById("error");
+const resultEl = document.getElementById("result");
+const setupEl = document.getElementById("setup");
+const workerEl = document.getElementById("worker");
+const saveMsg = document.getElementById("save-msg");
+const pill = document.getElementById("config-pill");
+const settings = document.getElementById("settings");
+
+function readSaved() {
+  try { return localStorage.getItem(STORAGE_KEY) || ""; }
+  catch { return ""; }
+}
+
+function writeSaved(value) {
+  localStorage.setItem(STORAGE_KEY, value);
+}
+
+function normalizeBase(raw) {
+  const text = String(raw || "").trim();
+  if (!text) return "";
+  let url;
+  try { url = new URL(text); }
+  catch { throw new Error("地址格式不对，需要类似 https://xxx.workers.dev"); }
+  const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) {
+    throw new Error("请填写 https:// 开头的 Worker 地址");
+  }
+  let path = url.pathname.replace(/\/+$/, "");
+  path = path.replace(/\/(resolve|file|health)$/, "");
+  return url.origin + path;
+}
+
+function workerBase() {
+  const raw = readSaved().trim() || DEFAULT_WORKER_URL.trim();
+  if (!raw) return "";
+  try { return normalizeBase(raw); }
+  catch { return ""; }
+}
+
+function endpoint(base, path) {
+  return new URL(path.replace(/^\//, ""), base.endsWith("/") ? base : base + "/");
+}
+
+function show(el, text) {
+  if (!text) { el.classList.add("hidden"); el.textContent = ""; return; }
+  el.textContent = text;
+  el.classList.remove("hidden");
+}
+
+function refreshConfig() {
+  const base = workerBase();
+  pill.textContent = base ? "已配置" : "未配置";
+  setupEl.classList.toggle("hidden", Boolean(base));
+  if (!base) settings.open = true;
+  if (!workerEl.value) workerEl.value = readSaved().trim() || DEFAULT_WORKER_URL.trim();
+}
+
+function humanSize(size) {
+  const n = Number(size);
+  if (!n) return "";
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+  return (n / 1024 / 1024).toFixed(1) + " MB";
+}
+
+function fileProxy(base, fileUrl, filename, download) {
+  const url = endpoint(base, "file");
+  url.searchParams.set("url", fileUrl);
+  url.searchParams.set("name", filename);
+  if (download) url.searchParams.set("dl", "1");
+  return url.toString();
+}
+
+function imageExt(url) {
+  const clean = String(url || "").split("?")[0].toLowerCase();
+  if (clean.includes(".png")) return "png";
+  if (clean.includes(".webp") || clean.includes("webp")) return "webp";
+  if (clean.includes(".gif")) return "gif";
+  return "jpg";
+}
+
+function httpUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+function renderResult(base, data) {
+  resultEl.replaceChildren();
+  resultEl.classList.remove("hidden");
+  const videoUrl = httpUrl(data.videoUrl);
+  const coverUrl = httpUrl(data.cover);
+  const images = (Array.isArray(data.images) ? data.images : []).map(httpUrl).filter(Boolean);
+
+  if (data.warning) {
+    const warn = document.createElement("p");
+    warn.className = "warn";
+    warn.textContent = data.warning;
+    resultEl.appendChild(warn);
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  if (coverUrl) {
+    const img = document.createElement("img");
+    img.alt = "";
+    img.referrerPolicy = "no-referrer";
+    img.src = fileProxy(base, coverUrl, "cover.jpg", false);
+    meta.appendChild(img);
+  }
+  const text = document.createElement("div");
+  const title = document.createElement("h2");
+  title.textContent = data.title || "小红书笔记";
+  const author = document.createElement("p");
+  const bits = [];
+  if (data.author) bits.push(data.author);
+  const size = humanSize(data.size);
+  if (data.videoUrl && size) bits.push(size);
+  if (data.via === "origin") bits.push("无水印原片");
+  author.textContent = bits.join(" · ");
+  text.appendChild(title);
+  text.appendChild(author);
+  meta.appendChild(text);
+  resultEl.appendChild(meta);
+
+  if (videoUrl) {
+    const video = document.createElement("video");
+    video.controls = true;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+    video.preload = "metadata";
+    if (coverUrl) video.poster = fileProxy(base, coverUrl, "cover.jpg", false);
+    video.src = fileProxy(base, videoUrl, data.filename || "video.mp4", false);
+    resultEl.appendChild(video);
+
+    const stack = document.createElement("div");
+    stack.className = "stack";
+    const download = document.createElement("a");
+    download.className = "btn primary";
+    download.href = fileProxy(base, videoUrl, data.filename || "video.mp4", true);
+    download.setAttribute("download", data.filename || "video.mp4");
+    download.textContent = "下载视频";
+    const open = document.createElement("a");
+    open.className = "btn secondary";
+    open.href = video.src;
+    open.target = "_blank";
+    open.rel = "noopener noreferrer";
+    open.textContent = "新标签页打开";
+    stack.appendChild(download);
+    stack.appendChild(open);
+    resultEl.appendChild(stack);
+
+    const tip = document.createElement("p");
+    tip.className = "hint";
+    tip.textContent = "iPhone：点「新标签页打开」，开始播放后点分享按钮，选择「存储视频」保存到相册。也可以全屏后点分享，或长按视频再分享。下载按钮在 iPhone 上通常会进「文件」，而不是相册。";
+    resultEl.appendChild(tip);
+  }
+
+  if (images.length && !videoUrl) {
+    const shots = document.createElement("div");
+    shots.className = "shots";
+    const stem = String(data.filename || "xhs").replace(/\.[a-z0-9]+$/i, "");
+    images.forEach((imageUrl, index) => {
+      const name = stem + "_" + (index + 1) + "." + imageExt(imageUrl);
+      const link = document.createElement("a");
+      link.className = "shot";
+      link.href = fileProxy(base, imageUrl, name, true);
+      link.setAttribute("download", name);
+      const img = document.createElement("img");
+      img.alt = "图片 " + (index + 1);
+      img.src = fileProxy(base, imageUrl, name, false);
+      const caption = document.createElement("span");
+      caption.textContent = "保存图片 " + (index + 1);
+      link.appendChild(img);
+      link.appendChild(caption);
+      shots.appendChild(link);
+    });
+    resultEl.appendChild(shots);
+    const tip = document.createElement("p");
+    tip.className = "hint";
+    tip.textContent = "iPhone：长按图片，选择「存储到照片」。";
+    resultEl.appendChild(tip);
+  }
+}
+
+async function parseShare(event) {
+  event.preventDefault();
+  show(errorEl, "");
+  show(statusEl, "");
+  const base = workerBase();
+  if (!base) {
+    settings.open = true;
+    show(errorEl, "请先在下方填好 Worker 地址并保存。浏览器不能直接请求小红书。");
+    setupEl.classList.remove("hidden");
+    return;
+  }
+  const text = shareEl.value.trim();
+  if (!text) {
+    show(errorEl, "请先粘贴分享文案或链接。");
+    return;
+  }
+  goBtn.disabled = true;
+  show(statusEl, "正在解析，请稍候…");
+  resultEl.classList.add("hidden");
+  try {
+    const url = endpoint(base, "resolve");
+    url.searchParams.set("input", text);
+    const response = await fetch(url.toString());
+    const raw = await response.text();
+    let data;
+    try { data = JSON.parse(raw); }
+    catch { throw new Error("Worker 没有返回 JSON。请检查地址是不是填对了。"); }
+    if (!response.ok || data.ok === false) throw new Error(data.error || "解析失败");
+    show(statusEl, "");
+    renderResult(base, data);
+  } catch (err) {
+    show(statusEl, "");
+    const message = err && err.message ? err.message : "解析失败";
+    if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
+      show(errorEl, "连不上 Worker。请确认地址、以及 Worker 已经部署成功。");
+    } else {
+      show(errorEl, message);
+    }
+  } finally {
+    goBtn.disabled = false;
+  }
+}
+
+document.getElementById("save").addEventListener("click", () => {
+  try {
+    const base = normalizeBase(workerEl.value);
+    if (!base) throw new Error("请先填写 Worker 地址");
+    writeSaved(base);
+    workerEl.value = base;
+    show(saveMsg, "已保存在这台设备的浏览器里。");
+    saveMsg.classList.remove("hint");
+    saveMsg.classList.add("okline");
+    refreshConfig();
+  } catch (err) {
+    saveMsg.classList.remove("okline");
+    saveMsg.classList.add("hint");
+    show(saveMsg, err.message || "保存失败");
+  }
+});
+
+document.getElementById("clear").addEventListener("click", () => {
+  try { localStorage.removeItem(STORAGE_KEY); } catch { /* 忽略 */ }
+  workerEl.value = DEFAULT_WORKER_URL.trim();
+  show(saveMsg, DEFAULT_WORKER_URL.trim() ? "已清除本机保存的地址，改用页面里写死的默认地址。" : "已清除。");
+  refreshConfig();
+});
+
+document.getElementById("test").addEventListener("click", async () => {
+  let base = "";
+  try { base = normalizeBase(workerEl.value) || workerBase(); }
+  catch (err) { show(saveMsg, err.message); return; }
+  if (!base) { show(saveMsg, "请先填写 Worker 地址。"); return; }
+  show(saveMsg, "正在测试…");
+  try {
+    const response = await fetch(endpoint(base, "health").toString());
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Worker 没有正常响应");
+    show(saveMsg, "连接成功：" + base);
+    saveMsg.classList.add("okline");
+  } catch {
+    saveMsg.classList.remove("okline");
+    show(saveMsg, "连接失败。请确认 Worker 已部署，并且地址没有多写路径。");
+  }
+});
+
+form.addEventListener("submit", parseShare);
+refreshConfig();
+</script>
+</body>
+</html>
